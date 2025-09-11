@@ -1,0 +1,9 @@
+*~
+*TAGS
+*.bin
+*.o
+*.ld
+*.d
+*.bin
+*.ld
+*.elf
