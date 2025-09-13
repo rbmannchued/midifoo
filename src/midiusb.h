@@ -20,8 +20,9 @@ void usb_setup(usbd_device *dev, uint16_t wValue);
 
 void otg_fs_isr(void);
 
-void usb_send_noteOn(usbd_device *dev);
-void usb_send_noteOff(usbd_device *dev);
+void usb_send_noteOn(usbd_device *dev, uint8_t note);
+void usb_send_noteOff(usbd_device *dev, uint8_t note);
+void usb_send_cc(usbd_device *dev, uint8_t note, uint8_t channel);
 
 void usbMidiInit(void);
 

@@ -7,34 +7,69 @@
 
 #include "midiusb.h"
 
-/* --- Ações associadas a cada botão --- */
-void action_pressed_button1(void) {
-    gpio_clear(GPIOC, GPIO13);
-    usb_send_noteOn(usbd_dev);
-}
-void action_released_button1(void){
-    gpio_set(GPIOC, GPIO13);
-    usb_send_noteOff(usbd_dev);
-}
-void action_button2(void) {
-    gpio_clear(GPIOC, GPIO13);
-}
+#define midiChannel 1
+int8_t noteOffset = 0;
+uint8_t noteValues[] = {64, 74, 60, 67};
 
 /* --- Estrutura de botão --- */
-typedef void (*button_cb_t)(void);
+
+typedef struct {
+    uint8_t note_index;       // Índice da nota no array
+    uint8_t* note_offset_ptr; // Ponteiro para a variável de offset
+} ButtonContext;
+
+typedef void (*button_cb_t)(void *ctx);
 
 typedef struct {
     uint16_t pin;
     button_cb_t onPressed;
     button_cb_t onReleased;
+    void* ctx;
     
 } Button;
 
+ButtonContext note_contexts[] = {
+    {0, &noteOffset}, // Botão 0 controla nota 0
+    {1, &noteOffset}, // Botão 1 controla nota 1
+    {2, &noteOffset}, // Botão 2 controla nota 2
+    {3, &noteOffset}  // Botão 3 controla nota 3
+};
+/* --- Ações associadas a cada botão --- */
+void action_pressed_sendNote(void *ctx) {
+    ButtonContext *context = (ButtonContext*)ctx;
+    gpio_clear(GPIOC, GPIO13);
+    usb_send_cc(usbd_dev, noteValues[context->note_index] + *(context->note_offset_ptr), midiChannel);
+}
+void action_released_sendNote(void *ctx){
+    /* ButtonContext *context = (ButtonContext*)ctx; */
+    /* gpio_set(GPIOC, GPIO13); */
+    /* usb_send_noteOff(usbd_dev, noteValues[context->note_index] + *(context->note_offset_ptr)); */
+}
+
+void action_increase_offset(void* ctx) {
+    uint8_t* offset = (uint8_t*)ctx;
+    if (*offset < 127 - 60) {
+        (*offset)++;
+    }
+}
+
+void action_decrease_offset(void* ctx) {
+    uint8_t* offset = (uint8_t*)ctx;
+    if (*offset > 0) {
+        (*offset)--;
+    }
+}
+
+
 /* --- Tabela de botões --- */
 static Button buttons[] = {
-    { GPIO1, action_pressed_button1, action_released_button1},
-    { GPIO2, action_button2, action_released_button1}
+    { GPIO1, action_pressed_sendNote, action_released_sendNote, &note_contexts[0] },
+    { GPIO2, action_pressed_sendNote, action_released_sendNote, &note_contexts[1] },
+    { GPIO3, action_pressed_sendNote, action_released_sendNote, &note_contexts[2] },
+    { GPIO4, action_pressed_sendNote, action_released_sendNote, &note_contexts[3] },
+    { GPIO5, action_decrease_offset, NULL, &noteOffset },
 };
+
 static const uint8_t BUTTON_NUM = sizeof(buttons) / sizeof(buttons[0]);
 
 void led_setup(void) {
@@ -72,9 +107,9 @@ void buttonPollTask(void *args){
                     button_state[i] = pressed;
 
                     if (pressed && buttons[i].onPressed) {
-                        buttons[i].onPressed(); 
+                        buttons[i].onPressed(buttons[i].ctx); 
                     }else if (!pressed && buttons[i].onReleased) {
-			buttons[i].onReleased();  
+			buttons[i].onReleased(buttons[i].ctx);  
 		    }
 		  
                 }
