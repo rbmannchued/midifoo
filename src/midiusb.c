@@ -303,38 +303,38 @@ static const char * usb_strings[] = {
     "AHSM00003\0"			
 };
 
-void usb_send_cc(usbd_device *dev, uint8_t note, uint8_t channel){
+void usb_send_cc(usbd_device *dev, uint8_t note, uint8_t velocity, uint8_t channel){
   /* Prepare MIDI packet for Note On message */
   char buf[4] = {
     0x08,                   /* Midi USB Byte */
     0xB0 + channel,                   /* cc byte on + channel */
     note,                   /* Note number */
-    0x7F                    /* Velocity (max) */
+    velocity                    /* Velocity (max) */
   };
 
   while (usbd_ep_write_packet(dev, 0x81, buf, sizeof(buf)) == 0);
 }
 
 
-void usb_send_noteOn(usbd_device *dev, uint8_t note){
+void usb_send_noteOn(usbd_device *dev, uint8_t note, uint8_t velocity, uint8_t channel){
   /* Prepare MIDI packet for Note On message */
   char buf[4] = {
     0x08,                   /* Midi USB Byte */
-    0x90,                   /* Note ON byte on channel */
+    0x90 + channel,                   /* Note ON byte on channel */
     note,                   /* Note number (middle C) */
-    0x7F                    /* Velocity (max) */
+    velocity                    /* Velocity (max) */
   };
 
   while (usbd_ep_write_packet(dev, 0x81, buf, sizeof(buf)) == 0);
 }
   
-void usb_send_noteOff(usbd_device *dev, uint8_t note){
+void usb_send_noteOff(usbd_device *dev, uint8_t note, uint8_t velocity, uint8_t channel){
   /* Prepare MIDI packet for Note On message */
   char buf[4] = {
     0x08,                   /* Command (Note On) */
-    0x80,                   /* MIDI channel (Note On with channel 0) */
+    0x80 + channel,                   /* MIDI channel (Note On with channel 0) */
     note,                   /* Note number (middle C) */
-    0x00                    /* Velocity (max) */
+    velocity                    /* Velocity (max) */
   };
 
   while (usbd_ep_write_packet(dev, 0x81, buf, sizeof(buf)) == 0);

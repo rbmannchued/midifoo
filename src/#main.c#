@@ -32,7 +32,7 @@ typedef struct {
 } Button;
 
 ButtonContext note_contexts[] = {
-    {0, &noteOffset, false}, // Botão 0 controla nota 0
+    {0, &noteOffset, false}, // Botão 0 controla nota 0 do array
     {1, &noteOffset, false}, // Botão 1 controla nota 1
     {2, &noteOffset, false}, // Botão 2 controla nota 2
     {3, &noteOffset, false}  // Botão 3 controla nota 3
