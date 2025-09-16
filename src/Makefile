@@ -17,12 +17,14 @@ midiusb.c \
 libs/ssd1306-libopencm3/ssd1306_libopencm3/ssd1306.c \
 libs/ssd1306-libopencm3/ssd1306_libopencm3/ssd1306_fonts.c
 
-#CMSISDSP_LIB = libs/cmsis_dsp/Source/build/libCMSISDSP.a
+CMSISDSP_LIB = libs/build/libCMSISDSP.a
 
-# $(PROJECT).elf: $(CMSISDSP_LIB)
+LDLIBS += $(CMSISDSP_LIB) -lm
 
-# $(CMSISDSP_LIB):
-# 	$(MAKE) -C libs/cmsis_dsp/Source
+$(PROJECT).elf: $(CMSISDSP_LIB)
+
+ $(CMSISDSP_LIB):
+	$(MAKE) -C libs/
 
 
 
@@ -31,23 +33,24 @@ libs/ssd1306-libopencm3/ssd1306_libopencm3/ssd1306_fonts.c
 # VPATH += $(SHARED_DIR)
 # INCLUDES += $(patsubst %,-I%, . $(SHARED_DIR))
 
-# INCLUDES += -Ilibs/cmsis_dsp/Include
-# INCLUDES += -Ilibs/cmsis_dsp/Include/dsp
-# INCLUDES += -Ilibs/cmsis_dsp/Core/Include
+INCLUDES += -Ilibs/CMSIS-DSP/Include
+INCLUDES += -Ilibs/CMSIS-DSP/Include/dsp
+INCLUDES += -Ilibs/CMSIS_6/CMSIS/Core/Include
 INCLUDES += -I.
 
 INCLUDES += -I ../FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/portable/GCC/ARM_CM4F/
 INCLUDES += -I ../FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/include/
 INCLUDES += -I libs/ssd1306-libopencm3/ssd1306_libopencm3/
-LDLIBS += $(CMSISDSP_LIB) -lm
+
 #CFLAGS += -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard
+
 include $(OPENCM3_DIR)/mk/genlink-config.mk
 include ../rules.mk
 include $(OPENCM3_DIR)/mk/genlink-rules.mk
 
-$(PROJECT).bin: $(PROJECT).elf
-	arm-none-eabi-objcopy -Obinary $< $@
-bin: $(PROJECT).bin
+PHONY: all
+.DEFAULT_GOAL := all
+all: $(PROJECT).elf $(PROJECT).bin
 
 flashbin:
 	st-flash write main.bin 0x8000000

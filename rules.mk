@@ -170,7 +170,7 @@ else
 endif
 
 clean:
-	rm -rf $(BUILD_DIR) $(GENERATED_BINS)
+	rm -rf $(BUILD_DIR) $(GENERATED_BINS) libs/build
 
 .PHONY: all clean flash
 -include $(OBJS:.o=.d)
