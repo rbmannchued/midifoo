@@ -340,7 +340,7 @@ void usb_send_noteOff(usbd_device *dev, uint8_t note, uint8_t velocity, uint8_t 
   while (usbd_ep_write_packet(dev, 0x81, buf, sizeof(buf)) == 0);
 }
 
-void usbMidiInit(void)
+void usbMidi_init(void)
 {
 
   rcc_periph_clock_enable(RCC_GPIOA);
@@ -348,7 +348,7 @@ void usbMidiInit(void)
   rcc_periph_clock_enable(RCC_GPIOB);
   rcc_periph_clock_enable(RCC_OTGFS);
   
-  OTG_FS_GCCFG |= OTG_GCCFG_NOVBUSSENS; // very important! if using blackpill
+  OTG_FS_GCCFG |= OTG_GCCFG_NOVBUSSENS; // very important!
   
   gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO11 | GPIO12);
   gpio_set_af(GPIOA, GPIO_AF10, GPIO11 | GPIO12);

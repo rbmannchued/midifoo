@@ -7,6 +7,7 @@ DEVICE=stm32f411ce
 
 CFILES = main.c \
 midiusb.c \
+tuner.c \
 ../FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/list.c \
 ../FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/queue.c \
 ../FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/tasks.c \

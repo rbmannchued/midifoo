@@ -1,3 +1,6 @@
+#ifndef MIDIUSB_H
+#define MIDIUSB_H
+
 #include <stdlib.h>
 #include <libopencm3/usb/usbd.h>
 #include <libopencm3/usb/audio.h>
@@ -9,7 +12,7 @@
 
 extern usbd_device *usbd_dev;
 
-// if you board does not have VBUS pin connected(like blackpill) you will have to add these defines
+// if you board does not have VBUS pin connected you will have to add these defines
 #define USB_OTG_FS_BASE		(PERIPH_BASE_AHB2 + 0x00000)
 #define OTG_GCCFG		0x038
 
@@ -29,3 +32,4 @@ void usbMidiInit(void);
 /* Buffer to be used for control requests. */
 extern uint8_t usbd_control_buffer[128];
 
+#endif

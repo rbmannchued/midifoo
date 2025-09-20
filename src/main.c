@@ -3,16 +3,21 @@
 
 #include <stdbool.h>
 #include "FreeRTOS.h"
+
 #include "task.h"
 
 #include "midiusb.h"
 #include "ssd1306.h"
 #include "ssd1306_fonts.h"
+#include "tuner.h"
 
 #define MIDI_CHANNEL 1
+bool tunerModeActive;
 int8_t noteOffset = 0;
 uint8_t noteValues[] = {64, 74, 60, 67};
-
+/* -- handles rtos --- */
+TaskHandle_t xHandleButtonPoll = NULL;
+TaskHandle_t xHandleOneButton = NULL;
 /* --- Estrutura de botão --- */
 
 typedef struct {
@@ -27,6 +32,7 @@ typedef struct {
     uint16_t pin;
     button_cb_t onPressed;
     button_cb_t onReleased;
+    button_cb_t onLongPress;
     void* ctx;
     
 } Button;
@@ -81,16 +87,34 @@ void action_decrease_offset(void* ctx) {
     }
     display_updateRoutine();
 }
+void action_toggle_tunerMode(void *ctx) {
+    (void)ctx;
+    tunerModeActive = !tunerModeActive;
+    openToTune(tunerModeActive);
 
+    if (tunerModeActive) {
+        audio_start();
+	vTaskPrioritySet(xHandleButtonPoll, 2);
+        vTaskResume(xHandleAudioAcq);
+        vTaskResume(xHandleFFTProc);
+        
+    } else {
+	display_updateRoutine();
+        audio_stop();
+	vTaskPrioritySet(xHandleButtonPoll, 3);
+	vTaskSuspend(xHandleAudioAcq);
+        vTaskSuspend(xHandleFFTProc);
+    }
+}
 
 /* --- Tabela de botões --- */
 static Button buttons[] = {
-    { GPIO1, action_pressed_sendNote, action_released_sendNote, &note_contexts[0] },
-    { GPIO2, action_pressed_sendNote, action_released_sendNote, &note_contexts[1] },
-    { GPIO3, action_pressed_sendNote, action_released_sendNote, &note_contexts[2] },
-    { GPIO4, action_pressed_sendNote, action_released_sendNote, &note_contexts[3] },
-    { GPIO5, action_decrease_offset, NULL, &noteOffset },
-    { GPIO8, action_increase_offset, NULL, &noteOffset }
+    { GPIO1, action_pressed_sendNote, action_released_sendNote, NULL, &note_contexts[0] },
+    { GPIO2, action_pressed_sendNote, action_released_sendNote, NULL, &note_contexts[1] },
+    { GPIO3, action_pressed_sendNote, action_released_sendNote, NULL, &note_contexts[2] },
+    { GPIO4, action_pressed_sendNote, action_released_sendNote, NULL, &note_contexts[3] },
+    { GPIO5, action_decrease_offset, NULL, action_toggle_tunerMode, &noteOffset },
+    { GPIO8, action_increase_offset, NULL, action_toggle_tunerMode, &noteOffset }
 };
 
 static const uint8_t BUTTON_NUM = sizeof(buttons) / sizeof(buttons[0]);
@@ -105,16 +129,16 @@ void button_poll_Task(void *args){
     (void) args;
     rcc_periph_clock_enable(RCC_GPIOB);
 
-
     for (uint8_t i = 0; i < BUTTON_NUM; i++) {
         gpio_mode_setup(GPIOB, GPIO_MODE_INPUT, GPIO_PUPD_PULLUP, buttons[i].pin);
     }
 
-
     bool button_state[BUTTON_NUM];
+    TickType_t press_time[BUTTON_NUM];
+
     for (uint8_t i = 0; i < BUTTON_NUM; i++) {
-        // active-low: pressionado quando gpio == 0
         button_state[i] = (gpio_get(GPIOB, buttons[i].pin) == 1);
+        press_time[i] = 0;
     }
 
     while (1) {
@@ -129,20 +153,40 @@ void button_poll_Task(void *args){
                 if (pressed != button_state[i]) {
                     button_state[i] = pressed;
 
-                    if (pressed && buttons[i].onPressed) {
-                        buttons[i].onPressed(buttons[i].ctx);
-			
-                    }else if (!pressed && buttons[i].onReleased) {
-			buttons[i].onReleased(buttons[i].ctx);  
-		    }
-		  
+                    if (pressed) {
+                        // --- Se tuner está ativo, qualquer clique desativa ---
+                        if (tunerModeActive) {
+                            action_toggle_tunerMode(NULL); // força sair do tuner
+                        } else {
+                            // comportamento normal
+                            press_time[i] = xTaskGetTickCount();
+                            if (buttons[i].onPressed) {
+                                buttons[i].onPressed(buttons[i].ctx);
+                            }
+                        }
+
+                    } else if (!tunerModeActive) {
+                        // Só executa release/long press se NÃO estiver no tuner
+                        TickType_t held_ticks = xTaskGetTickCount() - press_time[i];
+                        uint32_t held_ms = held_ticks * portTICK_PERIOD_MS;
+
+                        if (held_ms >= 1000) {
+                            if (buttons[i].onLongPress) {
+                                buttons[i].onLongPress(buttons[i].ctx);
+                            }
+                        } else {
+                            if (buttons[i].onReleased) {
+                                buttons[i].onReleased(buttons[i].ctx);
+                            }
+                        }
+                    }
                 }
             }
         }
-        // pausa pequena para não ocupar 100% CPU
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
+
 void display_init_Task(){
     /* enable clock for GPIOB and I2C1 */
     rcc_periph_clock_enable(RCC_GPIOB);
@@ -173,15 +217,34 @@ void display_init_Task(){
     vTaskDelete(NULL);
 }
 
+void openToTune(bool option){
+    if(option){
+     	gpio_set(GPIOA, GPIO6);
+	gpio_clear(GPIOC, GPIO13);
+    }else{
+	gpio_clear(GPIOA, GPIO6);
+	gpio_set(GPIOC, GPIO13);
+    }
+}
+
+
 int main(void) {
     rcc_clock_setup_pll(&rcc_hse_25mhz_3v3[RCC_CLOCK_3V3_84MHZ]);
-
+    
     led_setup();
-    usbMidiInit();
-    xTaskCreate(display_init_Task, "displayTask", 512, NULL, 3, NULL);
-    xTaskCreate(button_poll_Task, "buttonTask", 512, NULL, 2, NULL);
-    vTaskStartScheduler();
+    usbMidi_init();
+    tuner_init();
+    openToTune(true);
+    xTaskCreate(display_init_Task, "displayTask", 512, NULL, 5, NULL);
+    xTaskCreate(button_poll_Task, "buttonTask", 512, NULL, 3, &xHandleButtonPoll); 
+    xTaskCreate(vTaskAudioAcquisition, "AudioAcq", 512, NULL, 3, &xHandleAudioAcq);
+    xTaskCreate(vTaskFFTProcessing, "FFTProc", 1024, NULL, 4, &xHandleFFTProc);
 
+    vTaskSuspend(xHandleAudioAcq);
+    vTaskSuspend(xHandleFFTProc);
+    audio_stop();
+    vTaskStartScheduler();
+    /* audio_start(); */
     while (1);
 }
 
