@@ -244,7 +244,6 @@ int main(void) {
     vTaskSuspend(xHandleFFTProc);
     audio_stop();
     vTaskStartScheduler();
-    /* audio_start(); */
     while (1);
 }
 

@@ -8,6 +8,9 @@ DEVICE=stm32f411ce
 CFILES = main.c \
 midiusb.c \
 tuner.c \
+dsp/dsp.c \
+dsp/fir_coeffs.c \
+dsp/notes.c \
 ../FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/list.c \
 ../FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/queue.c \
 ../FreeRTOS-LTS/FreeRTOS/FreeRTOS-Kernel/tasks.c \
@@ -34,6 +37,7 @@ $(PROJECT).elf: $(CMSISDSP_LIB)
 # VPATH += $(SHARED_DIR)
 # INCLUDES += $(patsubst %,-I%, . $(SHARED_DIR))
 
+INCLUDES += -Idsp
 INCLUDES += -Ilibs/CMSIS-DSP/Include
 INCLUDES += -Ilibs/CMSIS-DSP/Include/dsp
 INCLUDES += -Ilibs/CMSIS_6/CMSIS/Core/Include
