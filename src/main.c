@@ -21,8 +21,8 @@ TaskHandle_t xHandleOneButton = NULL;
 /* --- Estrutura de botão --- */
 
 typedef struct {
-    uint8_t note_index;       // Índice da nota no array
-    uint8_t* note_offset_ptr; // Ponteiro para a variável de offset
+    uint8_t note_index;      
+    uint8_t* note_offset_ptr;
     bool activated;
 } ButtonContext;
 
