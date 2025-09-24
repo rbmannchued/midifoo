@@ -55,20 +55,16 @@ void display_updateRoutine() {
 }
 
 /* --- Ações associadas a cada botão --- */
-void action_pressed_sendNote(void *ctx) {
+void action_sendNote(void *ctx) {
     ButtonContext *context = (ButtonContext*)ctx;
     context->activated = !context->activated;
     uint8_t velocity = context->activated ? 127 : 0;
     gpio_clear(GPIOC, GPIO13);
     usb_send_cc(usbd_dev, noteValues[context->note_index] + *(context->note_offset_ptr), velocity,  MIDI_CHANNEL);
 }
-void action_released_sendNote(void *ctx){
-    /* ButtonContext *context = (ButtonContext*)ctx; */
-    /* gpio_set(GPIOC, GPIO13); */
-    /* usb_send_noteOff(usbd_dev, noteValues[context->note_index] + *(context->note_offset_ptr)); */
-}
 
 void action_increase_offset(void* ctx) {
+    if (tunerModeActive) return;
     int8_t* offset = (int8_t*)ctx;
     if (*offset < 4) {
         (*offset)++;
@@ -79,6 +75,7 @@ void action_increase_offset(void* ctx) {
 }
 
 void action_decrease_offset(void* ctx) {
+    if (tunerModeActive) return;
     int8_t* offset = (int8_t*)ctx;
     if (*offset > 0) {
         (*offset)--;
@@ -109,12 +106,12 @@ void action_toggle_tunerMode(void *ctx) {
 
 /* --- Tabela de botões --- */
 static Button buttons[] = {
-    { GPIO1, action_pressed_sendNote, action_released_sendNote, NULL, &note_contexts[0] },
-    { GPIO2, action_pressed_sendNote, action_released_sendNote, NULL, &note_contexts[1] },
-    { GPIO3, action_pressed_sendNote, action_released_sendNote, NULL, &note_contexts[2] },
-    { GPIO4, action_pressed_sendNote, action_released_sendNote, NULL, &note_contexts[3] },
-    { GPIO5, action_decrease_offset, NULL, action_toggle_tunerMode, &noteOffset },
-    { GPIO8, action_increase_offset, NULL, action_toggle_tunerMode, &noteOffset }
+    { GPIO1, NULL, action_sendNote, NULL, &note_contexts[0] },
+    { GPIO2, NULL, action_sendNote, NULL, &note_contexts[1] },
+    { GPIO3, NULL, action_sendNote, NULL, &note_contexts[2] },
+    { GPIO4, NULL, action_sendNote, NULL, &note_contexts[3] },
+    { GPIO5, NULL, action_decrease_offset, action_toggle_tunerMode, &noteOffset },
+    { GPIO8, NULL, action_increase_offset, action_toggle_tunerMode, &noteOffset }
 };
 
 static const uint8_t BUTTON_NUM = sizeof(buttons) / sizeof(buttons[0]);
@@ -160,9 +157,9 @@ void button_poll_Task(void *args){
                         } else {
                             // comportamento normal
                             press_time[i] = xTaskGetTickCount();
-                            if (buttons[i].onPressed) {
-                                buttons[i].onPressed(buttons[i].ctx);
-                            }
+                            /* if (buttons[i].onPressed) { */
+                            /*     buttons[i].onPressed(buttons[i].ctx); */
+                            /* } */
                         }
 
                     } else if (!tunerModeActive) {
