@@ -6,6 +6,8 @@ DEVICE=stm32f411ce
 
 
 CFILES = main.c \
+middleware/buttons_service.c \
+hardware/buttons_hal.c \
 midiusb.c \
 tuner.c \
 dsp/dsp.c \
@@ -38,6 +40,8 @@ $(PROJECT).elf: $(CMSISDSP_LIB)
 # INCLUDES += $(patsubst %,-I%, . $(SHARED_DIR))
 
 INCLUDES += -Idsp
+INCLUDES += -Ihardware
+INCLUDES += -Imiddleware
 INCLUDES += -Ilibs/CMSIS-DSP/Include
 INCLUDES += -Ilibs/CMSIS-DSP/Include/dsp
 INCLUDES += -Ilibs/CMSIS_6/CMSIS/Core/Include

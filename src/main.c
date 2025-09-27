@@ -10,38 +10,30 @@
 #include "ssd1306.h"
 #include "ssd1306_fonts.h"
 #include "tuner.h"
+#include "buttons_service.h"
 
 #define MIDI_CHANNEL 1
-bool tunerModeActive;
-int8_t noteOffset = 0;
-uint8_t noteValues[] = {64, 74, 60, 67};
+
 /* -- handles rtos --- */
 TaskHandle_t xHandleButtonPoll = NULL;
 TaskHandle_t xHandleOneButton = NULL;
-/* --- Estrutura de botão --- */
+
+
+bool tunerModeActivated = false;
+int8_t noteOffset = 0;
+uint8_t noteValues[] = {64, 74, 60, 67};
 
 typedef struct {
-    uint8_t note_index;      
-    uint8_t* note_offset_ptr;
+    uint8_t note_index;
+    int8_t *note_offset_ptr;
     bool activated;
 } ButtonContext;
 
-typedef void (*button_cb_t)(void *ctx);
-
-typedef struct {
-    uint16_t pin;
-    button_cb_t onPressed;
-    button_cb_t onReleased;
-    button_cb_t onLongPress;
-    void* ctx;
-    
-} Button;
-
-ButtonContext note_contexts[] = {
-    {0, &noteOffset, false}, // Botão 0 controla nota 0
-    {1, &noteOffset, false}, // Botão 1 controla nota 1
-    {2, &noteOffset, false}, // Botão 2 controla nota 2
-    {3, &noteOffset, false}  // Botão 3 controla nota 3
+static ButtonContext note_contexts[] = {
+    {0, &noteOffset, false},
+    {1, &noteOffset, false},
+    {2, &noteOffset, false},
+    {3, &noteOffset, false}
 };
 
 void display_updateRoutine() {
@@ -55,7 +47,7 @@ void display_updateRoutine() {
 }
 
 /* --- Ações associadas a cada botão --- */
-void action_sendNote(void *ctx) {
+void action_sendCC(void *ctx) {
     ButtonContext *context = (ButtonContext*)ctx;
     context->activated = !context->activated;
     uint8_t velocity = context->activated ? 127 : 0;
@@ -64,7 +56,7 @@ void action_sendNote(void *ctx) {
 }
 
 void action_increase_offset(void* ctx) {
-    if (tunerModeActive) return;
+    if (tunerModeActivated) return;
     int8_t* offset = (int8_t*)ctx;
     if (*offset < 4) {
         (*offset)++;
@@ -75,7 +67,7 @@ void action_increase_offset(void* ctx) {
 }
 
 void action_decrease_offset(void* ctx) {
-    if (tunerModeActive) return;
+    if (tunerModeActivated) return;
     int8_t* offset = (int8_t*)ctx;
     if (*offset > 0) {
         (*offset)--;
@@ -84,12 +76,23 @@ void action_decrease_offset(void* ctx) {
     }
     display_updateRoutine();
 }
+
+void openToTune(bool option){
+    if(option){
+     	gpio_set(GPIOA, GPIO6);
+	gpio_clear(GPIOC, GPIO13);
+    }else{
+	gpio_clear(GPIOA, GPIO6);
+	gpio_set(GPIOC, GPIO13);
+    }
+}
+
 void action_toggle_tunerMode(void *ctx) {
     (void)ctx;
-    tunerModeActive = !tunerModeActive;
-    openToTune(tunerModeActive);
+    tunerModeActivated = !tunerModeActivated;
+    openToTune(tunerModeActivated);
 
-    if (tunerModeActive) {
+    if (tunerModeActivated) {
         audio_start();
 	vTaskPrioritySet(xHandleButtonPoll, 2);
         vTaskResume(xHandleAudioAcq);
@@ -104,84 +107,55 @@ void action_toggle_tunerMode(void *ctx) {
     }
 }
 
-/* --- Tabela de botões --- */
+static void button_handler(ButtonEventType event, ButtonEvent *ctx) {
+    // Se tuner está ativo, qualquer botão desativa o modo
+    if (tunerModeActivated) {
+        action_toggle_tunerMode(NULL);
+        return;
+    }
+
+    switch (ctx->id) {
+        case 0:
+        case 1:
+        case 2:
+        case 3: // botões de nota
+            if (event == BUTTON_EVENT_RELEASED) {
+                action_sendCC(ctx->user_ctx);
+            }
+            break;
+
+        case 4: // offset down
+            if (event == BUTTON_EVENT_RELEASED) {
+                action_decrease_offset(ctx->user_ctx);
+            } else if (event == BUTTON_EVENT_LONGPRESS) {
+                action_toggle_tunerMode(NULL);
+            }
+            break;
+
+        case 5: // offset up
+            if (event == BUTTON_EVENT_RELEASED) {
+                action_increase_offset(ctx->user_ctx);
+            } else if (event == BUTTON_EVENT_LONGPRESS) {
+                action_toggle_tunerMode(NULL);
+            }
+            break;
+    }
+}
+
 static Button buttons[] = {
-    { GPIO1, NULL, action_sendNote, NULL, &note_contexts[0] },
-    { GPIO2, NULL, action_sendNote, NULL, &note_contexts[1] },
-    { GPIO3, NULL, action_sendNote, NULL, &note_contexts[2] },
-    { GPIO4, NULL, action_sendNote, NULL, &note_contexts[3] },
-    { GPIO5, NULL, action_decrease_offset, action_toggle_tunerMode, &noteOffset },
-    { GPIO8, NULL, action_increase_offset, action_toggle_tunerMode, &noteOffset }
+    { GPIO1, button_handler, &note_contexts[0] },
+    { GPIO2, button_handler, &note_contexts[1] },
+    { GPIO3, button_handler, &note_contexts[2] },
+    { GPIO4, button_handler, &note_contexts[3] },
+    { GPIO5, button_handler, &noteOffset },
+    { GPIO8, button_handler, &noteOffset }
 };
 
-static const uint8_t BUTTON_NUM = sizeof(buttons) / sizeof(buttons[0]);
 
 void led_setup(void) {
     rcc_periph_clock_enable(RCC_GPIOC);
     gpio_mode_setup(GPIOC, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO13);
     gpio_set(GPIOC, GPIO13);
-}
-
-void button_poll_Task(void *args){
-    (void) args;
-    rcc_periph_clock_enable(RCC_GPIOB);
-
-    for (uint8_t i = 0; i < BUTTON_NUM; i++) {
-        gpio_mode_setup(GPIOB, GPIO_MODE_INPUT, GPIO_PUPD_PULLUP, buttons[i].pin);
-    }
-
-    bool button_state[BUTTON_NUM];
-    TickType_t press_time[BUTTON_NUM];
-
-    for (uint8_t i = 0; i < BUTTON_NUM; i++) {
-        button_state[i] = (gpio_get(GPIOB, buttons[i].pin) == 1);
-        press_time[i] = 0;
-    }
-
-    while (1) {
-        for (uint8_t i = 0; i < BUTTON_NUM; i++) {
-            bool pressed = (gpio_get(GPIOB, buttons[i].pin) == 0);
-
-            if (pressed != button_state[i]) {
-                // debounce simples: espera 20ms e verifica novamente
-                vTaskDelay(pdMS_TO_TICKS(20));
-                pressed = (gpio_get(GPIOB, buttons[i].pin) == 0);
-
-                if (pressed != button_state[i]) {
-                    button_state[i] = pressed;
-
-                    if (pressed) {
-                        // --- Se tuner está ativo, qualquer clique desativa ---
-                        if (tunerModeActive) {
-                            action_toggle_tunerMode(NULL); // força sair do tuner
-                        } else {
-                            // comportamento normal
-                            press_time[i] = xTaskGetTickCount();
-                            /* if (buttons[i].onPressed) { */
-                            /*     buttons[i].onPressed(buttons[i].ctx); */
-                            /* } */
-                        }
-
-                    } else if (!tunerModeActive) {
-                        // Só executa release/long press se NÃO estiver no tuner
-                        TickType_t held_ticks = xTaskGetTickCount() - press_time[i];
-                        uint32_t held_ms = held_ticks * portTICK_PERIOD_MS;
-
-                        if (held_ms >= 1000) {
-                            if (buttons[i].onLongPress) {
-                                buttons[i].onLongPress(buttons[i].ctx);
-                            }
-                        } else {
-                            if (buttons[i].onReleased) {
-                                buttons[i].onReleased(buttons[i].ctx);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
 }
 
 void display_init_Task(){
@@ -214,26 +188,19 @@ void display_init_Task(){
     vTaskDelete(NULL);
 }
 
-void openToTune(bool option){
-    if(option){
-     	gpio_set(GPIOA, GPIO6);
-	gpio_clear(GPIOC, GPIO13);
-    }else{
-	gpio_clear(GPIOA, GPIO6);
-	gpio_set(GPIOC, GPIO13);
-    }
-}
+
 
 
 int main(void) {
     rcc_clock_setup_pll(&rcc_hse_25mhz_3v3[RCC_CLOCK_3V3_84MHZ]);
     
     led_setup();
+    buttons_service_init(buttons, sizeof(buttons)/sizeof(buttons[0]));
     usbMidi_init();
     tuner_init();
     openToTune(true);
     xTaskCreate(display_init_Task, "displayTask", 512, NULL, 5, NULL);
-    xTaskCreate(button_poll_Task, "buttonTask", 512, NULL, 3, &xHandleButtonPoll); 
+    xTaskCreate(buttons_poll_task, "buttonTask", 512, NULL, 3, &xHandleButtonPoll); 
     xTaskCreate(vTaskAudioAcquisition, "AudioAcq", 512, NULL, 3, &xHandleAudioAcq);
     xTaskCreate(vTaskFFTProcessing, "FFTProc", 1024, NULL, 4, &xHandleFFTProc);
 
