@@ -7,10 +7,9 @@
 #include "task.h"
 
 #include "midiusb.h"
-#include "ssd1306.h"
-#include "ssd1306_fonts.h"
 #include "tuner.h"
 #include "buttons_service.h"
+#include "display_service.h"
 
 #define MIDI_CHANNEL 1
 
@@ -36,17 +35,6 @@ static ButtonContext note_contexts[] = {
     {3, &noteOffset, false}
 };
 
-void display_updateRoutine() {
-    char buffer[8];
-    snprintf(buffer, sizeof(buffer), "A%d", noteOffset);
-    
-    ssd1306_Fill(Black);  // limpa tela
-    ssd1306_SetCursor(50, 20);
-    ssd1306_WriteString(buffer, Font_16x26, White);
-    ssd1306_UpdateScreen();
-}
-
-/* --- Ações associadas a cada botão --- */
 void action_sendCC(void *ctx) {
     ButtonContext *context = (ButtonContext*)ctx;
     context->activated = !context->activated;
@@ -63,7 +51,7 @@ void action_increase_offset(void* ctx) {
     }else{
 	(*offset = 0);
     }
-    display_updateRoutine();
+    display_service_showNoteBank(noteOffset);
 }
 
 void action_decrease_offset(void* ctx) {
@@ -74,7 +62,7 @@ void action_decrease_offset(void* ctx) {
     }else{
 	(*offset = 4);
     }
-    display_updateRoutine();
+    display_service_showNoteBank(noteOffset);    
 }
 
 void openToTune(bool option){
@@ -99,7 +87,7 @@ void action_toggle_tunerMode(void *ctx) {
         vTaskResume(xHandleFFTProc);
         
     } else {
-	display_updateRoutine();
+	display_service_showNoteBank(noteOffset);
         audio_stop();
 	vTaskPrioritySet(xHandleButtonPoll, 3);
 	vTaskSuspend(xHandleAudioAcq);
@@ -157,39 +145,11 @@ void led_setup(void) {
     gpio_mode_setup(GPIOC, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO13);
     gpio_set(GPIOC, GPIO13);
 }
-
-void display_init_Task(){
-    /* enable clock for GPIOB and I2C1 */
-    rcc_periph_clock_enable(RCC_GPIOB);
-    rcc_periph_clock_enable(RCC_I2C1);
-
-
-    /* configure pins PB6 (SCL) and PB7 (SDA) as Alternate Function */
-    gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO6|GPIO7);
-    gpio_set_af(GPIOB, GPIO_AF4, GPIO6|GPIO7);
-    gpio_set_output_options(GPIOB, GPIO_OTYPE_OD, GPIO_OSPEED_2MHZ, GPIO6 | GPIO7);
-    
-    /* reset and config I2C */
-
-
-    i2c_peripheral_disable(SSD1306_I2C_PORT);
-    i2c_set_speed(SSD1306_I2C_PORT, i2c_speed_fm_400k, rcc_apb1_frequency/1e6);
-
-    i2c_peripheral_enable(SSD1306_I2C_PORT);
-
-
-    ssd1306_Init();
-    //fixing led bugs on display
-    ssd1306_Line(130, 1, 130, 64, Black);
-    ssd1306_Line(129, 1, 129, 64, Black);
-    
-    display_updateRoutine();
-
+void display_startTask(){
+    display_service_init();
+    display_service_showNoteBank(noteOffset);
     vTaskDelete(NULL);
 }
-
-
-
 
 int main(void) {
     rcc_clock_setup_pll(&rcc_hse_25mhz_3v3[RCC_CLOCK_3V3_84MHZ]);
@@ -199,13 +159,14 @@ int main(void) {
     usbMidi_init();
     tuner_init();
     openToTune(true);
-    xTaskCreate(display_init_Task, "displayTask", 512, NULL, 5, NULL);
+    xTaskCreate(display_startTask, "displayTask", 512, NULL, 6, NULL);
     xTaskCreate(buttons_poll_task, "buttonTask", 512, NULL, 3, &xHandleButtonPoll); 
     xTaskCreate(vTaskAudioAcquisition, "AudioAcq", 512, NULL, 3, &xHandleAudioAcq);
     xTaskCreate(vTaskFFTProcessing, "FFTProc", 1024, NULL, 4, &xHandleFFTProc);
-
+    
     vTaskSuspend(xHandleAudioAcq);
     vTaskSuspend(xHandleFFTProc);
+
     audio_stop();
     vTaskStartScheduler();
     while (1);

@@ -6,9 +6,6 @@
 #include <libopencm3/stm32/f4/nvic.h>
 #include <libopencm3/cm3/cortex.h>
 
-#include "ssd1306.h"
-#include "ssd1306_fonts.h"
-
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
@@ -30,40 +27,6 @@ volatile uint16_t adc_buffer2[FRAME_LEN];
 volatile uint16_t *current_buffer = adc_buffer1;
 volatile uint16_t *processing_buffer = adc_buffer2;
 volatile int buffer_index = 0;
-
-
-void display_result(int noteDiff, double frequency, int noteIndex){
-    char frequencyStr[15];
-    char octaveStr[10];
-    int octave = get_noteOctave(noteIndex);
-    ssd1306_SetCursor(0, 10);
-    snprintf(frequencyStr,sizeof(frequencyStr),"%.2f hz \n",frequency);
-    snprintf(octaveStr, sizeof(octaveStr), "%d", octave);
-	  
-	     
-    ssd1306_Fill(Black);
-    ssd1306_Line(64,0,(64+(128*noteDiff/100)),0, White);
-    ssd1306_Line(64,1,(64+(128*noteDiff/100)),1, White);
-    ssd1306_Line(64,2,(64+(128*noteDiff/100)),2, White);
-    ssd1306_Line(64,3,(64+(128*noteDiff/100)),3, White);
-    ssd1306_Line(64,4,(64+(128*noteDiff/100)),4, White);
-    ssd1306_Line(64,5,(64+(128*noteDiff/100)),5, White);
-    ssd1306_Line(64,6,(64+(128*noteDiff/100)),6, White);
-    ssd1306_Line(64,7,(64+(128*noteDiff/100)),7, White);
-    ssd1306_Line(64,8,(64+(128*noteDiff/100)),8, White);
-    ssd1306_Line(64,9,(64+(128*noteDiff/100)),9, White);
-    ssd1306_SetCursor(30,20);
-    ssd1306_WriteString("  ",Font_11x18, White);
-
-
-    ssd1306_WriteString(noteNames[noteIndex % 12], Font_16x26, White);
-    ssd1306_SetCursor(85,26);
-    ssd1306_WriteString(octaveStr, Font_11x18,White);
-    ssd1306_SetCursor(40,50);
-    ssd1306_WriteString(frequencyStr,Font_7x10, White);
-    ssd1306_UpdateScreen();
-     
-}
 
 void adc_isr(void) {
     if (adc_eoc(ADC1)) {
@@ -161,40 +124,45 @@ void vTaskAudioAcquisition(void *pvParameters) {
         }
     }
 }
-
 void vTaskFFTProcessing(void *pvParameters) {
     volatile uint16_t *vbuffer_ptr = NULL;
 
     // últimos valores para manter na tela caso não detecte nada
-    static int lastNoteIndex = 0;
     static int lastNoteDiff = 0;
-    static double lastFrequency = 0.0;
+    static int lastNoteIndex = 0;
 
     for (;;) {
         if (xQueueReceive(xAudioQueue, &vbuffer_ptr, portMAX_DELAY) == pdTRUE) {
-            // DSP não usa volatile; convertemos o ponteiro antes de passar
+
             uint16_t *buffer_ptr = (uint16_t *)vbuffer_ptr;
 
             // chama pipeline DSP (retorna frequência em Hz)
             float frequency = dsp_process(buffer_ptr);
 
-            // interpretar resultado no nível da aplicação
-            int noteIndex = get_closestNoteIndex((double)frequency);
+
+            int noteIndex = get_closestNoteIndex(frequency);
 
             if (frequency == 0.0f || noteIndex == 60 || noteIndex == 0) {
-                // mantém último resultado na tela
-                display_result(lastNoteDiff, lastFrequency, lastNoteIndex);
+
+                display_service_showTunerInfo(
+                    lastNoteDiff,
+                    noteNames[lastNoteIndex % 12],
+                    get_noteOctave(lastNoteIndex)
+                );
             } else {
-                double noteDiff_d = get_noteDiff((double)frequency, noteIndex);
+                double noteDiff_d = get_noteDiff(frequency, noteIndex);
                 int noteDiff = (int)round(noteDiff_d);
-                display_result(noteDiff, (double)frequency, noteIndex);
+
+                display_service_showTunerInfo(
+                    noteDiff,
+                    noteNames[noteIndex % 12],
+                    get_noteOctave(noteIndex)
+                );
 
                 lastNoteDiff = noteDiff;
-                lastFrequency = (double)frequency;
                 lastNoteIndex = noteIndex;
             }
 
-            // Pode ajustar delay conforme necessidade (simula a Task do firmware)
             vTaskDelay(pdMS_TO_TICKS(50));
         }
     }

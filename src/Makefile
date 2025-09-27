@@ -7,6 +7,8 @@ DEVICE=stm32f411ce
 
 CFILES = main.c \
 middleware/buttons_service.c \
+middleware/display_service.c \
+hardware/i2c_hal.c \
 hardware/buttons_hal.c \
 midiusb.c \
 tuner.c \
