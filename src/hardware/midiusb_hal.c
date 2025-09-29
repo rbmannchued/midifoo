@@ -1,4 +1,13 @@
-#include "midiusb.h"
+ #include "midiusb_hal.h"
+
+#include <stdlib.h>
+#include <libopencm3/usb/usbd.h>
+#include <libopencm3/usb/audio.h>
+#include <libopencm3/usb/midi.h>
+#include <libopencm3/cm3/scb.h>
+#include <libopencm3/cm3/nvic.h>
+#include <libopencm3/stm32/rcc.h>
+#include <libopencm3/stm32/gpio.h>
 
 usbd_device *usbd_dev;
 uint8_t usbd_control_buffer[128];
@@ -85,8 +94,7 @@ static const struct usb_device_descriptor dev_descr = {
   .bNumConfigurations = 1,  
 };
 
-void usb_setup(usbd_device *dev, uint16_t wValue)
-{
+void usb_setup(usbd_device *dev, uint16_t wValue){
 
   (void)wValue;
 
@@ -98,7 +106,6 @@ void usb_setup(usbd_device *dev, uint16_t wValue)
 
 }
 
-//{ poll USB on interruptg */
 void otg_fs_isr(void) {
   usbd_poll(usbd_dev);
 }
@@ -294,53 +301,21 @@ static const struct usb_config_descriptor config = {
 static const char * usb_strings[] = {
 
     /* Manufacturer */
-    "Rafael Bormann Chuede",
+    MANUFACTURER,
 
     /* Product */
-    "MIDI SENDER STM32",
+    PRODUCT_NAME,
 
     /* SerialNumber */
-    "AHSM00003\0"			
+    PRODUCT_SERIAL			
 };
 
-void usb_send_cc(usbd_device *dev, uint8_t note, uint8_t velocity, uint8_t channel){
-  /* Prepare MIDI packet for Note On message */
-  char buf[4] = {
-    0x08,                   /* Midi USB Byte */
-    0xB0 + channel,                   /* cc byte on + channel */
-    note,                   /* Note number */
-    velocity                    /* Velocity (max) */
-  };
-
-  while (usbd_ep_write_packet(dev, 0x81, buf, sizeof(buf)) == 0);
+int midiusb_hal_write(const void *buf, uint16_t len) {
+    return usbd_ep_write_packet(usbd_dev, 0x81, buf, len);
 }
 
 
-void usb_send_noteOn(usbd_device *dev, uint8_t note, uint8_t velocity, uint8_t channel){
-  /* Prepare MIDI packet for Note On message */
-  char buf[4] = {
-    0x08,                   /* Midi USB Byte */
-    0x90 + channel,                   /* Note ON byte on channel */
-    note,                   /* Note number (middle C) */
-    velocity                    /* Velocity (max) */
-  };
-
-  while (usbd_ep_write_packet(dev, 0x81, buf, sizeof(buf)) == 0);
-}
-  
-void usb_send_noteOff(usbd_device *dev, uint8_t note, uint8_t velocity, uint8_t channel){
-  /* Prepare MIDI packet for Note On message */
-  char buf[4] = {
-    0x08,                   /* Command (Note On) */
-    0x80 + channel,                   /* MIDI channel (Note On with channel 0) */
-    note,                   /* Note number (middle C) */
-    velocity                    /* Velocity (max) */
-  };
-
-  while (usbd_ep_write_packet(dev, 0x81, buf, sizeof(buf)) == 0);
-}
-
-void usbMidi_init(void)
+void midiusb_hal_init(void)
 {
 
   rcc_periph_clock_enable(RCC_GPIOA);
@@ -362,9 +337,11 @@ void usbMidi_init(void)
   usbd_register_set_config_callback(usbd_dev, usb_setup);
 
   /* Wait for USB to register on the PC */
-  for (int i = 0; i < 0x800000; i++) { __asm__("nop"); }
+  // for (int i = 0; i < 0x800000; i++) { __asm__("nop"); }
 
   /* Wait for USB Vbus. */
 //  while (gpio_get(GPIOA, GPIO8) == 0) { __asm__("nop"); }
 
 }
+
+

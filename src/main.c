@@ -6,7 +6,7 @@
 
 #include "task.h"
 
-#include "midiusb.h"
+#include "midiusb_middleware.h"
 #include "tuner.h"
 #include "buttons_service.h"
 #include "display_service.h"
@@ -40,7 +40,7 @@ void action_sendCC(void *ctx) {
     context->activated = !context->activated;
     uint8_t velocity = context->activated ? 127 : 0;
     gpio_clear(GPIOC, GPIO13);
-    usb_send_cc(usbd_dev, noteValues[context->note_index] + *(context->note_offset_ptr), velocity,  MIDI_CHANNEL);
+    midiusb_send_cc(noteValues[context->note_index] + *(context->note_offset_ptr), velocity,  MIDI_CHANNEL);
 }
 
 void action_increase_offset(void* ctx) {
@@ -156,9 +156,10 @@ int main(void) {
     
     led_setup();
     buttons_service_init(buttons, sizeof(buttons)/sizeof(buttons[0]));
-    usbMidi_init();
+    midiusb_init();
     tuner_init();
     openToTune(true);
+    
     xTaskCreate(display_startTask, "displayTask", 512, NULL, 6, NULL);
     xTaskCreate(buttons_poll_task, "buttonTask", 512, NULL, 3, &xHandleButtonPoll); 
     xTaskCreate(vTaskAudioAcquisition, "AudioAcq", 512, NULL, 3, &xHandleAudioAcq);
