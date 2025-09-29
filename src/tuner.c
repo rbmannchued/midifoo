@@ -79,15 +79,12 @@ static void adc_init(void) {
 void tuner_init(void) {
     cm_enable_interrupts();
 
-    // Inicializa periféricos de aquisição
     adc_init();
     timer_init();
 
-    // Inicializa objetos FreeRTOS antes de criar tasks
     xBufferReadySemaphore = xSemaphoreCreateBinary();
     xAudioQueue = xQueueCreate(2, sizeof(volatile uint16_t *));
 
-    // Inicializa o motor DSP (CMSIS-DSP)
     dsp_init();
 }
 
@@ -95,7 +92,7 @@ void audio_start(void) {
     adc_power_off(ADC1);
     adc_power_on(ADC1);
 
-    // Reinicia timer / trigger
+    // Reinicia timer
     timer_disable_counter(TIM2);
     timer_enable_counter(TIM2);
 
@@ -119,15 +116,14 @@ void vTaskAudioAcquisition(void *pvParameters) {
     for (;;) {
         if (xSemaphoreTake(xBufferReadySemaphore, portMAX_DELAY) == pdTRUE) {
             // envia ponteiro do buffer pronto para a fila
-            // note: processing_buffer é volatile uint16_t *
             xQueueSend(xAudioQueue, &processing_buffer, portMAX_DELAY);
         }
     }
 }
+
 void vTaskFFTProcessing(void *pvParameters) {
     volatile uint16_t *vbuffer_ptr = NULL;
 
-    // últimos valores para manter na tela caso não detecte nada
     static int lastNoteDiff = 0;
     static int lastNoteIndex = 0;
 
@@ -136,9 +132,7 @@ void vTaskFFTProcessing(void *pvParameters) {
 
             uint16_t *buffer_ptr = (uint16_t *)vbuffer_ptr;
 
-            // chama pipeline DSP (retorna frequência em Hz)
             float frequency = dsp_process(buffer_ptr);
-
 
             int noteIndex = get_closestNoteIndex(frequency);
 

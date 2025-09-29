@@ -1,5 +1,6 @@
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
+#include <libopencm3/cm3/cortex.h>
 
 #include <stdbool.h>
 #include "FreeRTOS.h"
@@ -7,7 +8,7 @@
 #include "task.h"
 
 #include "midiusb_middleware.h"
-#include "tuner.h"
+#include "tuner_service.h"
 #include "buttons_service.h"
 #include "display_service.h"
 
@@ -85,6 +86,7 @@ void action_toggle_tunerMode(void *ctx) {
 	vTaskPrioritySet(xHandleButtonPoll, 2);
         vTaskResume(xHandleAudioAcq);
         vTaskResume(xHandleFFTProc);
+	display_service_showTunerInfo(0, " ", 0); // mostra tela tuner inicial
         
     } else {
 	display_service_showNoteBank(noteOffset);
@@ -157,13 +159,15 @@ int main(void) {
     led_setup();
     buttons_service_init(buttons, sizeof(buttons)/sizeof(buttons[0]));
     midiusb_init();
-    tuner_init();
+    tuner_service_init();
+
+    cm_enable_interrupts(); // enables global interrupts needed for tuner adc
     openToTune(true);
     
     xTaskCreate(display_startTask, "displayTask", 512, NULL, 6, NULL);
     xTaskCreate(buttons_poll_task, "buttonTask", 512, NULL, 3, &xHandleButtonPoll); 
-    xTaskCreate(vTaskAudioAcquisition, "AudioAcq", 512, NULL, 3, &xHandleAudioAcq);
-    xTaskCreate(vTaskFFTProcessing, "FFTProc", 1024, NULL, 4, &xHandleFFTProc);
+    xTaskCreate(tuner_audioAcq_task, "tunerAudioAcq", 512, NULL, 3, &xHandleAudioAcq);
+    xTaskCreate(tuner_processing_task, "tunerProcessing", 1024, NULL, 4, &xHandleFFTProc);
     
     vTaskSuspend(xHandleAudioAcq);
     vTaskSuspend(xHandleFFTProc);

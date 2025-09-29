@@ -8,11 +8,13 @@ DEVICE=stm32f411ce
 CFILES = main.c \
 services/buttons_service.c \
 services/display_service.c \
+services/tuner_service.c \
 hardware/midiusb_hal.c \
 hardware/i2c_hal.c \
 hardware/buttons_hal.c \
+hardware/adc_hal.c \
+hardware/timer_hal.c \
 middleware/midiusb_middleware.c \
-tuner.c \
 dsp/dsp.c \
 dsp/fir_coeffs.c \
 dsp/notes.c \
