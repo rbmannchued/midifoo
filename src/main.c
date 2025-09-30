@@ -14,6 +14,9 @@
 
 #define MIDI_CHANNEL 1
 
+#define NUM_BANKS 5
+#define NUM_BUTTONS 4
+
 /* -- handles rtos --- */
 TaskHandle_t xHandleButtonPoll = NULL;
 TaskHandle_t xHandleOneButton = NULL;
@@ -23,10 +26,11 @@ bool tunerModeActivated = false;
 int8_t noteOffset = 0;
 uint8_t noteValues[] = {64, 74, 60, 67};
 
+bool button_states[NUM_BANKS][NUM_BUTTONS] = {0};
+
 typedef struct {
     uint8_t note_index;
     int8_t *note_offset_ptr;
-    bool activated;
 } ButtonContext;
 
 static ButtonContext note_contexts[] = {
@@ -36,12 +40,16 @@ static ButtonContext note_contexts[] = {
     {3, &noteOffset, false}
 };
 
-void action_sendCC(void *ctx) {
+void action_pressed(void *ctx) {
     ButtonContext *context = (ButtonContext*)ctx;
-    context->activated = !context->activated;
-    uint8_t velocity = context->activated ? 127 : 0;
+    uint8_t bank = *(context->note_offset_ptr);
+    uint8_t idx = context->note_index;
+
+    button_states[bank][idx] = !button_states[bank][idx];
+
+    uint8_t velocity = button_states[bank][idx] ? 127 : 0;
     gpio_clear(GPIOC, GPIO13);
-    midiusb_send_cc(noteValues[context->note_index] + *(context->note_offset_ptr), velocity,  MIDI_CHANNEL);
+    midiusb_send_cc(noteValues[idx] + bank, velocity, MIDI_CHANNEL);
 }
 
 void action_increase_offset(void* ctx) {
@@ -110,7 +118,7 @@ static void button_handler(ButtonEventType event, ButtonEvent *ctx) {
         case 2:
         case 3: // botões de nota
             if (event == BUTTON_EVENT_RELEASED) {
-                action_sendCC(ctx->user_ctx);
+                action_pressed(ctx->user_ctx);
             }
             break;
 
