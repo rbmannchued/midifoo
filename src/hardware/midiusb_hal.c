@@ -11,6 +11,7 @@
 
 usbd_device *usbd_dev;
 uint8_t usbd_control_buffer[128];
+bool usb_configured = false;
 
 static const struct usb_device_descriptor dev_descr = {
   /* Type: uint8_t   Size: 1   
@@ -95,19 +96,21 @@ static const struct usb_device_descriptor dev_descr = {
 };
 
 void usb_setup(usbd_device *dev, uint16_t wValue){
-
-  (void)wValue;
-
+    (void)dev;
+    (void)wValue;
+    usb_configured = true;
   /* Setup USB Receive interrupt. */
-  usbd_ep_setup(dev, 0x01, USB_ENDPOINT_ATTR_BULK, 64, NULL);
-
-  usbd_ep_setup(dev, 0x81, USB_ENDPOINT_ATTR_BULK, 64, NULL);
-    
-
+    usbd_ep_setup(dev, 0x01, USB_ENDPOINT_ATTR_BULK, 64, NULL);
+  
+    usbd_ep_setup(dev, 0x81, USB_ENDPOINT_ATTR_BULK, 64, NULL);
 }
 
+bool usb_is_ready(void) {
+    return usb_configured;
+};
+
 void otg_fs_isr(void) {
-  usbd_poll(usbd_dev);
+    usbd_poll(usbd_dev);
 }
 
 

@@ -34,10 +34,10 @@ typedef struct {
 } ButtonContext;
 
 static ButtonContext note_contexts[] = {
-    {0, &noteOffset, false},
-    {1, &noteOffset, false},
-    {2, &noteOffset, false},
-    {3, &noteOffset, false}
+    {0, &noteOffset},
+    {1, &noteOffset},
+    {2, &noteOffset},
+    {3, &noteOffset}
 };
 
 void action_pressed(void *ctx) {

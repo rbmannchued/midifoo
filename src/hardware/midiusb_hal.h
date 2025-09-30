@@ -2,6 +2,7 @@
 #define MIDIUSB_HAL_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <libopencm3/usb/usbd.h>
 #include <libopencm3/usb/audio.h>
 #include <libopencm3/usb/midi.h>
@@ -23,7 +24,11 @@
 
 extern usbd_device *usbd_dev;
 
+extern bool usb_configured;
+
 void midiusb_hal_init(void);
+
+bool usb_is_ready(void);
 
 int midiusb_hal_write(const void *buf, uint16_t len);
 
