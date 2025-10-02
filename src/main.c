@@ -11,6 +11,8 @@
 #include "tuner_service.h"
 #include "buttons_service.h"
 #include "display_service.h"
+#include "midibt_middleware.h"
+#include "usart_hal.h"
 
 #define MIDI_CHANNEL 1
 
@@ -41,7 +43,7 @@ static ButtonContext note_contexts[] = {
 };
 
 void action_pressed(void *ctx) {
-    ButtonContext *context = (ButtonContext*)ctx;
+    ButtonContext *context = (ButtonContext*)ctx;y
     uint8_t bank = *(context->note_offset_ptr);
     uint8_t idx = context->note_index;
 
@@ -50,6 +52,8 @@ void action_pressed(void *ctx) {
     uint8_t velocity = button_states[bank][idx] ? 127 : 0;
     gpio_clear(GPIOC, GPIO13);
     midiusb_send_cc(noteValues[idx] + bank, velocity, MIDI_CHANNEL);
+    midibt_send_cc(noteValues[idx] + bank, velocity, MIDI_CHANNEL);
+
 }
 
 void action_increase_offset(void* ctx) {
@@ -167,11 +171,12 @@ int main(void) {
     led_setup();
     buttons_service_init(buttons, sizeof(buttons)/sizeof(buttons[0]));
     midiusb_init();
+    midibt_init();
     tuner_service_init();
 
     cm_enable_interrupts(); // enables global interrupts needed for tuner adc
     openToTune(true);
-    
+
     xTaskCreate(display_startTask, "displayTask", 512, NULL, 6, NULL);
     xTaskCreate(buttons_poll_task, "buttonTask", 512, NULL, 3, &xHandleButtonPoll); 
     xTaskCreate(tuner_audioAcq_task, "tunerAudioAcq", 512, NULL, 3, &xHandleAudioAcq);

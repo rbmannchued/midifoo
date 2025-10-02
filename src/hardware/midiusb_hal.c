@@ -1,4 +1,4 @@
- #include "midiusb_hal.h"
+#include "midiusb_hal.h"
 
 #include <stdlib.h>
 #include <libopencm3/usb/usbd.h>
