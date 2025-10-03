@@ -13,6 +13,7 @@
 #include "display_service.h"
 #include "midibt_middleware.h"
 #include "usart_hal.h"
+#include "led_service.h"
 
 #define MIDI_CHANNEL 1
 
@@ -43,11 +44,12 @@ static ButtonContext note_contexts[] = {
 };
 
 void action_pressed(void *ctx) {
-    ButtonContext *context = (ButtonContext*)ctx;y
+    ButtonContext *context = (ButtonContext*)ctx;
     uint8_t bank = *(context->note_offset_ptr);
     uint8_t idx = context->note_index;
 
     button_states[bank][idx] = !button_states[bank][idx];
+    led_service_toggle_led(bank, idx);
 
     uint8_t velocity = button_states[bank][idx] ? 127 : 0;
     gpio_clear(GPIOC, GPIO13);
@@ -65,6 +67,7 @@ void action_increase_offset(void* ctx) {
 	(*offset = 0);
     }
     display_service_showNoteBank(noteOffset);
+    led_service_update_bank(noteOffset);
 }
 
 void action_decrease_offset(void* ctx) {
@@ -75,7 +78,8 @@ void action_decrease_offset(void* ctx) {
     }else{
 	(*offset = 4);
     }
-    display_service_showNoteBank(noteOffset);    
+    display_service_showNoteBank(noteOffset);
+    led_service_update_bank(noteOffset);
 }
 
 void openToTune(bool option){
@@ -92,6 +96,7 @@ void action_toggle_tunerMode(void *ctx) {
     (void)ctx;
     tunerModeActivated = !tunerModeActivated;
     openToTune(tunerModeActivated);
+    led_service_set_tuner_mode(tunerModeActivated);
 
     if (tunerModeActivated) {
         audio_start();
@@ -173,6 +178,7 @@ int main(void) {
     midiusb_init();
     midibt_init();
     tuner_service_init();
+    led_service_init();
 
     cm_enable_interrupts(); // enables global interrupts needed for tuner adc
     openToTune(true);

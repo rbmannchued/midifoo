@@ -9,6 +9,8 @@ CFILES = main.c \
 services/buttons_service.c \
 services/display_service.c \
 services/tuner_service.c \
+services/led_service.c \
+hardware/hc4053_hal.c \
 hardware/usart_hal.c \
 hardware/hc05_hal.c \
 hardware/midiusb_hal.c \
@@ -16,8 +18,9 @@ hardware/i2c_hal.c \
 hardware/buttons_hal.c \
 hardware/adc_hal.c \
 hardware/timer_hal.c \
-middleware/midiusb_middleware.c \
+middleware/hc4053_middleware.c \
 middleware/midibt_middleware.c \
+middleware/midiusb_middleware.c \
 dsp/dsp.c \
 dsp/fir_coeffs.c \
 dsp/notes.c \
