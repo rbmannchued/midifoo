@@ -20,14 +20,15 @@ static void tuner_adc_isr_callback(uint16_t sample);
 static adc_hal_config_t tuner_adc_cfg = {
     .adc = ADC1,
     .gpio_port = GPIOA,
-    .gpio_pin = GPIO1,
+    .gpio_pins = GPIO1,
     .channel = 1,
     .rcc_gpio = RCC_GPIOA,
     .rcc_adc = RCC_ADC1,
     .irq = NVIC_ADC_IRQ,
     .isr_callback = tuner_adc_isr_callback,
     .ext_trigger = ADC_CR2_EXTSEL_TIM2_TRGO,
-    .ext_edge = ADC_CR2_EXTEN_RISING_EDGE
+    .ext_edge = ADC_CR2_EXTEN_RISING_EDGE,
+    .mode = ADC_MODE_INTERRUPT
 };
 
 static timer_hal_config_t tuner_timer_cfg = {
@@ -65,8 +66,8 @@ static void tuner_adc_isr_callback(uint16_t sample) {
 }
 
 void audio_start(){
-    adc_hal_stop(&tuner_adc_cfg);
-    adc_hal_start(&tuner_adc_cfg);
+    adc_hal_stop();
+    adc_hal_start();
 
     timer_hal_stop(&tuner_timer_cfg);
     timer_hal_start(&tuner_timer_cfg);
@@ -78,7 +79,7 @@ void audio_start(){
 
 void audio_stop() {
     timer_hal_stop(&tuner_timer_cfg);
-    adc_hal_stop(&tuner_adc_cfg);
+    adc_hal_stop();
 
     if (xHandleAudioAcq) vTaskSuspend(xHandleAudioAcq);
     if (xHandleFFTProc) vTaskSuspend(xHandleFFTProc);
