@@ -6,6 +6,7 @@ DEVICE=stm32f411ce
 
 
 CFILES = main.c \
+services/pots_service.c \
 services/buttons_service.c \
 services/display_service.c \
 services/tuner_service.c \

@@ -66,7 +66,7 @@ static void tuner_adc_isr_callback(uint16_t sample) {
 }
 
 void audio_start(){
-    adc_hal_stop();
+    /* adc_hal_stop(); */
     adc_hal_start();
 
     timer_hal_stop(&tuner_timer_cfg);
@@ -79,7 +79,7 @@ void audio_start(){
 
 void audio_stop() {
     timer_hal_stop(&tuner_timer_cfg);
-    adc_hal_stop();
+    /* adc_hal_stop(); */
 
     if (xHandleAudioAcq) vTaskSuspend(xHandleAudioAcq);
     if (xHandleFFTProc) vTaskSuspend(xHandleFFTProc);

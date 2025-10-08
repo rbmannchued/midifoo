@@ -14,6 +14,8 @@
 #include "midibt_middleware.h"
 #include "usart_hal.h"
 #include "led_service.h"
+#include "pots_service.h"
+#include "adc_hal.h"
 
 #define MIDI_CHANNEL 1
 
@@ -23,7 +25,7 @@
 /* -- handles rtos --- */
 TaskHandle_t xHandleButtonPoll = NULL;
 TaskHandle_t xHandleOneButton = NULL;
-
+TaskHandle_t xHandlePotsPoll = NULL;
 
 bool tunerModeActivated = false;
 int8_t noteOffset = 0;
@@ -99,16 +101,21 @@ void action_toggle_tunerMode(void *ctx) {
     led_service_set_tuner_mode(tunerModeActivated);
 
     if (tunerModeActivated) {
+	tuner_service_init();
         audio_start();
+	vTaskSuspend(xHandlePotsPoll);
+	/* sets button task lower priority than audio tuner tasks */
 	vTaskPrioritySet(xHandleButtonPoll, 2);
         vTaskResume(xHandleAudioAcq);
         vTaskResume(xHandleFFTProc);
 	display_service_showTunerInfo(0, " ", 0); // mostra tela tuner inicial
         
     } else {
+	pots_service_init();
 	display_service_showNoteBank(noteOffset);
         audio_stop();
 	vTaskPrioritySet(xHandleButtonPoll, 3);
+	vTaskResume(xHandlePotsPoll);
 	vTaskSuspend(xHandleAudioAcq);
         vTaskSuspend(xHandleFFTProc);
     }
@@ -170,24 +177,41 @@ void display_startTask(){
     vTaskDelete(NULL);
 }
 
+void pots_poll_task(void *args) {
+    (void)args;
+
+    while (1) {
+	midiusb_send_cc(100, pots_service_read_midiValue(4), MIDI_CHANNEL);
+	    
+	
+	midiusb_send_cc(120, pots_service_read_midiValue(5), MIDI_CHANNEL);
+
+	vTaskDelay(pdMS_TO_TICKS(20));
+    }
+}
+
+
 int main(void) {
     rcc_clock_setup_pll(&rcc_hse_25mhz_3v3[RCC_CLOCK_3V3_84MHZ]);
-    
+
+
     led_setup();
     buttons_service_init(buttons, sizeof(buttons)/sizeof(buttons[0]));
     midiusb_init();
     midibt_init();
-    tuner_service_init();
+    //tuner_service_init();
+    pots_service_init();
     led_service_init();
 
-    cm_enable_interrupts(); // enables global interrupts needed for tuner adc
+    cm_enable_interrupts(); // enables global interrupts needed for tuner adc */
     openToTune(true);
-
+    usart_hal_send_string("ola mundo \r\n");
     xTaskCreate(display_startTask, "displayTask", 512, NULL, 6, NULL);
-    xTaskCreate(buttons_poll_task, "buttonTask", 512, NULL, 3, &xHandleButtonPoll); 
+    xTaskCreate(buttons_poll_task, "buttonTask", 512, NULL, 3, &xHandleButtonPoll);
     xTaskCreate(tuner_audioAcq_task, "tunerAudioAcq", 512, NULL, 3, &xHandleAudioAcq);
     xTaskCreate(tuner_processing_task, "tunerProcessing", 1024, NULL, 4, &xHandleFFTProc);
-    
+    xTaskCreate(pots_poll_task, "potsTask", 512, NULL, 3, &xHandlePotsPoll);
+	
     vTaskSuspend(xHandleAudioAcq);
     vTaskSuspend(xHandleFFTProc);
 
