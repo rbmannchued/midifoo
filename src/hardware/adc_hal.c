@@ -50,7 +50,22 @@ void adc_hal_start(void) {
 }
 
 void adc_hal_stop(void) {
+    if (!adc_cfg_ptr) return;
+
+    /* disable external trigger and EOC interrupt if enabled */
+    if (adc_cfg_ptr->irq != 0) {
+        /* disable ADC EOC interrupt in ADC and NVIC */
+        adc_disable_eoc_interrupt(adc_cfg_ptr->adc);
+        nvic_disable_irq(adc_cfg_ptr->irq);
+    }
+    adc_disable_external_trigger_regular(adc_cfg_ptr->adc);
+
+
     adc_power_off(adc_cfg_ptr->adc);
+    /* small delay */
+    for (volatile int i = 0; i < 1000; ++i) __asm__("nop");
+
+    adc_cfg_ptr = NULL;
 }
 
 

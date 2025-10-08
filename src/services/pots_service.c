@@ -32,21 +32,35 @@ void pots_service_init() {
     }
 }
 
-uint8_t pots_service_read_midiValue(uint8_t pot) {
-    if (pot >= NUM_POTS) return 0;
+uint8_t pots_service_read_midiValue(uint8_t channel) {
 
-    uint16_t adc_value = adc_hal_read_channel(pot);
-    uint8_t mapped_value = (uint8_t)((adc_value * 127) / 4095);
+    uint16_t adc_value = adc_hal_read_channel(channel);
+    uint8_t mapped_value = (adc_value * 127) / 4095;
 
-    previous_values[pot] = current_values[pot];
-    current_values[pot] = mapped_value;
+    previous_values[channel] = current_values[channel];
+    current_values[channel] = mapped_value;
 
     return mapped_value;
 }
+void pots_service_stop(){
+    adc_hal_stop();
+}
 
-bool pots_service_has_changed(uint8_t  pot) {
-    if (pot >= NUM_POTS) return false;
-    return (current_values[pot] != previous_values[pot]);
+bool pots_service_has_changed(uint8_t  channel) {
+    return (current_values[channel] != previous_values[channel]);
+}
+
+bool pots_service_read_and_check(uint8_t channel, uint8_t *out_value) {
+    uint16_t adc_value = adc_hal_read_channel(channel);
+    uint8_t mapped_value = (adc_value * 127) / 4095;
+
+    bool changed = (mapped_value != current_values[channel]);
+
+    previous_values[channel] = current_values[channel];
+    current_values[channel] = mapped_value;
+    *out_value = mapped_value;
+
+    return changed;
 }
 
 

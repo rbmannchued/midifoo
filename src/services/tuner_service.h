@@ -31,4 +31,5 @@ void audio_stop();
 void tuner_audioAcq_task(void *pvParameters);
 void tuner_processing_task(void *pvParameters);
 static void tuner_adc_isr_callback(uint16_t sample);
+void tuner_service_stop();
 #endif

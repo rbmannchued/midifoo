@@ -43,8 +43,9 @@ void tuner_service_init(){
     timer_hal_init(&tuner_timer_cfg);
 
     //FreeRTOS instances semaphre and queue
-    xBufferReadySemaphore = xSemaphoreCreateBinary();
-    xAudioQueue = xQueueCreate(2, sizeof(volatile uint16_t *));
+    if (!xBufferReadySemaphore) xBufferReadySemaphore = xSemaphoreCreateBinary();
+    if (!xAudioQueue) xAudioQueue = xQueueCreate(2, sizeof(volatile uint16_t *));
+    
 
     dsp_init();
 }
@@ -66,7 +67,6 @@ static void tuner_adc_isr_callback(uint16_t sample) {
 }
 
 void audio_start(){
-    /* adc_hal_stop(); */
     adc_hal_start();
 
     timer_hal_stop(&tuner_timer_cfg);
@@ -75,16 +75,22 @@ void audio_start(){
     if (xHandleAudioAcq) vTaskResume(xHandleAudioAcq);
     if (xHandleFFTProc) vTaskResume(xHandleFFTProc);
 }
+void tuner_service_stop(){
+    audio_stop();
+}
 
 
 void audio_stop() {
     timer_hal_stop(&tuner_timer_cfg);
-    /* adc_hal_stop(); */
+    adc_hal_stop();
 
     if (xHandleAudioAcq) vTaskSuspend(xHandleAudioAcq);
     if (xHandleFFTProc) vTaskSuspend(xHandleFFTProc);
 
+
     buffer_index = 0;
+    current_buffer = adc_buffer1;
+    processing_buffer = adc_buffer2;
 }
 
 
