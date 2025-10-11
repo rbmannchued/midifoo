@@ -3,6 +3,10 @@
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/adc.h>
+#include <stdlib.h>
+
+#define POT_CHANGE_THRESHOLD 2
+#define POT_SMOOTH_FACTOR 0.2f
 
 static const adc_hal_config_t pots_adc_cfg = {
 	.adc = ADC1,
@@ -20,6 +24,7 @@ static const adc_hal_config_t pots_adc_cfg = {
 
 static uint8_t current_values[NUM_POTS] = {0};
 static uint8_t previous_values[NUM_POTS] = {0};
+static float smoothed_values[NUM_POTS] = {0};
 
 void pots_service_init() {
     adc_hal_init(&pots_adc_cfg);
@@ -32,37 +37,26 @@ void pots_service_init() {
     }
 }
 
-uint8_t pots_service_read_midiValue(uint8_t channel) {
-
-    uint16_t adc_value = adc_hal_read_channel(channel);
+uint8_t pots_service_get_midiValue(uint8_t pot) {
+    uint16_t adc_value = adc_hal_read_channel(pots_adc_cfg.channel[pot]);
     uint8_t mapped_value = (adc_value * 127) / 4095;
 
-    previous_values[channel] = current_values[channel];
-    current_values[channel] = mapped_value;
+    smoothed_values[pot] = (POT_SMOOTH_FACTOR * mapped_value) +
+	((1.0f - POT_SMOOTH_FACTOR) * smoothed_values[pot]);
 
-    return mapped_value;
+    previous_values[pot] = current_values[pot];
+    current_values[pot] = (uint8_t)smoothed_values[pot];
+
+    return current_values[pot];
 }
 void pots_service_stop(){
     adc_hal_stop();
 }
 
-bool pots_service_has_changed(uint8_t  channel) {
-    return (current_values[channel] != previous_values[channel]);
+bool pots_service_has_changed(uint8_t  pot) {
+    int8_t diff = current_values[pot] - previous_values[pot];
+    return abs(diff) >= POT_CHANGE_THRESHOLD;
 }
-
-bool pots_service_read_and_check(uint8_t channel, uint8_t *out_value) {
-    uint16_t adc_value = adc_hal_read_channel(channel);
-    uint8_t mapped_value = (adc_value * 127) / 4095;
-
-    bool changed = (mapped_value != current_values[channel]);
-
-    previous_values[channel] = current_values[channel];
-    current_values[channel] = mapped_value;
-    *out_value = mapped_value;
-
-    return changed;
-}
-
 
 uint16_t pots_service_read_adc(uint8_t channel) {
     return adc_hal_read_channel(channel);

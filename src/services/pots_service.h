@@ -11,8 +11,8 @@
 static uint8_t current_values[NUM_POTS];
 static uint8_t previous_values[NUM_POTS];
 void pots_service_init(void);
-uint8_t pots_service_read_midiValue(uint8_t channel);
-bool pots_service_has_changed(uint8_t  channel);
+uint8_t pots_service_get_midiValue(uint8_t pot);
+bool pots_service_has_changed(uint8_t  pot);
 uint16_t pots_service_read_adc(uint8_t channel);
 bool pots_service_read_and_check(uint8_t channel, uint8_t *out_value);
 void pots_service_stop();
