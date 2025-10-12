@@ -26,23 +26,31 @@ void display_service_showNoteBank(int8_t offset) {
 }
 
 void display_service_showTunerInfo(int noteDiff, const char *noteName, int octave) {
-    char octaveStr[10];
-
     ssd1306_Fill(Black);
 
-    for (int y = 0; y < 10; y++) {
-        ssd1306_Line(64, y, (64 + (128 * noteDiff / 100)), y, White);
-    }
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%s%d", noteName, octave);
+    ssd1306_SetCursor(8, 10);
+    ssd1306_WriteString(buf, Font_16x26, White);
 
+    snprintf(buf, sizeof(buf), "%+d¢", noteDiff);
+    ssd1306_SetCursor(90, 10);
+    ssd1306_WriteString(buf, Font_11x18, White);
 
-    ssd1306_SetCursor(30, 20);
-    ssd1306_WriteString("  ", Font_11x18, White);
-    ssd1306_WriteString(noteName, Font_16x26, White);
+    const int centerX = 64;
+    const int barTop = 50;
+    const int barBottom = 63;
+    ssd1306_Line(centerX, barTop, centerX, barBottom, White);
 
+    int pointerOffset = (int)(noteDiff * 0.8f);
+    if (pointerOffset > 40) pointerOffset = 40;
+    if (pointerOffset < -40) pointerOffset = -40;
+    int pointerX = centerX + pointerOffset;
 
-    snprintf(octaveStr, sizeof(octaveStr), "%d", octave);
-    ssd1306_SetCursor(85, 26);
-    ssd1306_WriteString(octaveStr, Font_11x18, White);
+    ssd1306_Line(pointerX, barBottom, pointerX, barTop - 5, White);
+
+    ssd1306_Line(centerX - 40, barTop, centerX - 40, barBottom, White);
+    ssd1306_Line(centerX + 40, barTop, centerX + 40, barBottom, White);
 
     ssd1306_UpdateScreen();
 }

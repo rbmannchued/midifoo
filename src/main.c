@@ -189,9 +189,11 @@ void pots_poll_task(void *args) {
 	potValue1 = pots_service_get_midiValue(1);
 	if(pots_service_has_changed(0)){
 	    midiusb_send_cc(potNoteValues[0], potValue0, MIDI_CHANNEL);
+	    midibt_send_cc(potNoteValues[0], potValue0, MIDI_CHANNEL);
 	}
 	if(pots_service_has_changed(1)){
 	    midiusb_send_cc(potNoteValues[1], potValue1, MIDI_CHANNEL);
+	    midibt_send_cc(potNoteValues[1], potValue1, MIDI_CHANNEL);
 	}
 	
         vTaskDelay(pdMS_TO_TICKS(20));
