@@ -147,7 +147,7 @@ TEST(DSPBasicTest, DSPProcess_DetectsGuitarNotesFromWAV) {
         {"samples/D_146_strato_neck.wav", 146.83f, "D3 (146.83Hz)"},
         {"samples/G_196_strato_neck.wav", 196.00f, "G3 (196.00Hz)"},
         {"samples/B_247_strato_neck.wav", 246.94f, "B3 (246.94Hz)"},
-        {"samples/E_165_strato_neck.wav", 164.81f, "E3 (164.81Hz)"}
+        {"samples/E_330_strato_neck.wav", 329.63f, "E3 (329.63Hz)"}
     };
     
     const float TOLERANCE = 2.0f; // ±2Hz de tolerância
@@ -172,20 +172,20 @@ TEST(DSPBasicTest, DSPProcess_DetectsGuitarNotesFromWAV) {
                 
                 // Verifica se está dentro da tolerância
                 if (error <= TOLERANCE) {
-                    std::cout << "✓ DETECÇÃO PRECISA" << std::endl;
+                    std::cout << "DETECÇÃO PRECISA" << std::endl;
                     tests_passed++;
                 } else {
-                    std::cout << "✗ DETECÇÃO FORA DA TOLERÂNCIA" << std::endl;
+                    std::cout << " DETECÇÃO FORA DA TOLERÂNCIA" << std::endl;
                 }
                 
                 // Para testes unitários, ainda verificamos mas não falhamos imediatamente
                 // CHECK_TRUE(error <= TOLERANCE);
             } else {
-                std::cout << "✗ FALHA NA DETECÇÃO (frequência = 0)" << std::endl;
+                std::cout << "FALHA NA DETECÇÃO (frequência = 0)" << std::endl;
                 // CHECK_TRUE(detected_freq > 0);
             }
         } else {
-            std::cout << "✗ ARQUIVO NÃO ENCONTRADO OU INVÁLIDO: " << note.filename << std::endl;
+            std::cout << " ARQUIVO NÃO ENCONTRADO OU INVÁLIDO: " << note.filename << std::endl;
         }
     }
     

@@ -54,3 +54,10 @@ void display_service_showTunerInfo(int noteDiff, const char *noteName, int octav
 
     ssd1306_UpdateScreen();
 }
+
+void display_service_showNoSignal(void) {
+    ssd1306_Fill(Black);
+    ssd1306_SetCursor(8, 10);
+    ssd1306_WriteString("...", Font_16x26, White);
+    ssd1306_UpdateScreen();
+}

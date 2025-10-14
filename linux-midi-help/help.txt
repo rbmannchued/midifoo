@@ -1,0 +1,4 @@
+after connecting bt device run this command with jack server running:
+tymidi -s /dev/rfcomm0 -b 115200
+
+for bridge alsa midi and jack midi use amidi

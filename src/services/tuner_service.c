@@ -118,13 +118,9 @@ void tuner_processing_task(void *pvParameters) {
 
             int noteIndex = get_closestNoteIndex(frequency);
 
-            if (frequency == 0.0f || noteIndex == 60 || noteIndex == 0) {
-
-                display_service_showTunerInfo(
-                    lastNoteDiff,
-                    noteNames[lastNoteIndex % 12],
-                    get_noteOctave(lastNoteIndex)
-                );
+	    if (frequency <= 0.0f) {
+		display_service_showNoSignal();
+		continue; 
             } else {
                 double noteDiff_d = get_noteDiff(frequency, noteIndex);
                 int noteDiff = (int)round(noteDiff_d);

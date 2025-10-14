@@ -18,6 +18,8 @@ float dsp_last_peak = 0.0f;
 #define ADC_MAX_VAL 4095.0f
 #endif
 
+#define SILENCE_THRESHOLD 0.015f
+
 /* Applies Hanning and normalize */
 void preprocess_signal(volatile uint16_t *buffer, volatile float32_t *output) {
     // IIR HPF: y[n] = alpha * (y[n-1] + x[n] - x[n-1])
@@ -112,6 +114,16 @@ float dsp_process(volatile uint16_t *buffer) {
 
     preprocess_signal(buffer, input_signal);
 
+    float abs_sum = 0.0f;
+    for (int i = 0; i < FRAME_LEN; i += 4) { // amostragem parcial (¼ das amostras)
+        abs_sum += fabsf(input_signal[i]);
+    }
+    float mean_abs = abs_sum / (FRAME_LEN / 4);
+
+    if (mean_abs < SILENCE_THRESHOLD) {
+        return 0.0f; // sem sinal detectável
+    }
+
     apply_fir(input_signal, filtered_signal);
 
     compute_fft(filtered_signal, output_fft);
@@ -141,14 +153,14 @@ float dsp_process(volatile uint16_t *buffer) {
 
     float freq = index_to_frequency(max_index, SAMPLE_RATE, FRAME_LEN);
 
-// --- correção de harmônicos múltiplos ---
+
     float fundamental = freq;
     float half_freq = freq * 0.5f;
     float third_freq = freq / 3.0f;
     float half_bin = half_freq * FRAME_LEN / SAMPLE_RATE;
     float third_bin = third_freq * FRAME_LEN / SAMPLE_RATE;
 
-// verifica se há energia considerável em sub-harmônicos
+    //verifies octave bins
     if (half_bin > 5 && filtered_signal[(int)half_bin] > 0.4f * dsp_last_peak) {
 	fundamental = half_freq;
     } else if (third_bin > 5 && filtered_signal[(int)third_bin] > 0.4f * dsp_last_peak) {

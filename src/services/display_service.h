@@ -11,4 +11,6 @@ void display_service_showNoteBank(int8_t offset);
 /* shows note and meter */
 void display_service_showTunerInfo(int noteDiff, const char *noteName, int octave);
 
+void display_service_showNoSignal(void);
+
 #endif
