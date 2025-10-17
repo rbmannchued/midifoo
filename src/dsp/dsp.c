@@ -23,7 +23,7 @@ float dsp_last_peak = 0.0f;
 /* Applies Hanning and normalize */
 void preprocess_signal(volatile uint16_t *buffer, volatile float32_t *output) {
     // IIR HPF: y[n] = alpha * (y[n-1] + x[n] - x[n-1])
-    const float alpha = 0.995f;
+    const float alpha = 0.97f;
     static float x_prev = 0.0f, y_prev = 0.0f;
     for (int i = 0; i < FRAME_LEN; i++) {
         float x = ((float)buffer[i] / ADC_MAX_VAL); // normalize 0..1
@@ -140,8 +140,8 @@ float dsp_process(volatile uint16_t *buffer) {
     for (int i = 5; i < n; i++) mean_mag += filtered_signal[i];
     mean_mag /= (float)(n - 5);
 
-    const float floor_abs = 1e-3f;            
-    const float mult = 6.0f;                  
+    const float floor_abs = 5e-4f;            
+    const float mult = 3.0f;                  
     float threshold = fmaxf(floor_abs, mean_mag * mult);
 
     dsp_last_peak = peak;
