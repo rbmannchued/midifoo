@@ -13,4 +13,6 @@ void display_service_showTunerInfo(int noteDiff, const char *noteName, int octav
 
 void display_service_showNoSignal(void);
 
+void display_service_showBatteryIcon(uint8_t level);
+
 #endif

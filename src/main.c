@@ -177,6 +177,7 @@ void led_setup(void) {
 void display_startTask(){
     display_service_init();
     display_service_showNoteBank(noteOffset);
+    display_service_showBatteryIcon(50);
     vTaskDelete(NULL);
 }
 
@@ -212,6 +213,7 @@ int main(void) {
     pots_service_init();
     led_service_init();
 
+    gpio_mode_setup(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO6);
     cm_enable_interrupts(); // enables global interrupts needed for tuner adc */
     openToTune(true);
     usart_hal_send_string("ola mundo \r\n");
