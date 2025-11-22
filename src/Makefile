@@ -11,6 +11,7 @@ services/buttons_service.c \
 services/display_service.c \
 services/tuner_service.c \
 services/led_service.c \
+services/battery_service.c \
 hardware/hc4053_hal.c \
 hardware/usart_hal.c \
 hardware/hc05_hal.c \

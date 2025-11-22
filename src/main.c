@@ -12,8 +12,10 @@
 #include "buttons_service.h"
 #include "display_service.h"
 #include "midibt_middleware.h"
+#include "battery_service.h"
 #include "led_service.h"
 #include "pots_service.h"
+
 
 
 #define MIDI_CHANNEL 1
@@ -25,6 +27,7 @@
 TaskHandle_t xHandleButtonPoll = NULL;
 TaskHandle_t xHandleOneButton = NULL;
 TaskHandle_t xHandlePotsPoll = NULL;
+TaskHandle_t xHandleBatteryTask = NULL;
 
 bool tunerModeActivated = false;
 int8_t noteOffset = 0;
@@ -177,7 +180,7 @@ void led_setup(void) {
 void display_startTask(){
     display_service_init();
     display_service_showNoteBank(noteOffset);
-    display_service_showBatteryIcon(50);
+    /* display_service_showBatteryIcon(50); */
     vTaskDelete(NULL);
 }
 
@@ -212,6 +215,7 @@ int main(void) {
     midibt_init();
     pots_service_init();
     led_service_init();
+    battery_service_init();
 
     gpio_mode_setup(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO6);
     cm_enable_interrupts(); // enables global interrupts needed for tuner adc */
@@ -222,11 +226,10 @@ int main(void) {
     xTaskCreate(tuner_audioAcq_task, "tunerAudioAcq", 512, NULL, 3, &xHandleAudioAcq);
     xTaskCreate(tuner_processing_task, "tunerProcessing", 1024, NULL, 4, &xHandleFFTProc);
     xTaskCreate(pots_poll_task, "potsTask", 512, NULL, 3, &xHandlePotsPoll);
-	
+    xTaskCreate(battery_service_task, "battTask", 512, NULL, 3, &xHandleBatteryTask);
     vTaskSuspend(xHandleAudioAcq);
     vTaskSuspend(xHandleFFTProc);
 
     vTaskStartScheduler();
     while (1);
 }
-

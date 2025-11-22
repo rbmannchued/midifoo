@@ -94,8 +94,10 @@ void display_service_showNoSignal(void) {
     ssd1306_UpdateScreen();
 }
 void display_service_showBatteryIcon(uint8_t level) {
-
+    ssd1306_FillRectangle(108, 0, 127, 11, Black); // clean the region first
     switch(level) {
+
+
 
     case 25:
         ssd1306_DrawBitmap(128-20, 0, epd_bitmap_batt_25, 20, 12, White);
