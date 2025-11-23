@@ -39,19 +39,27 @@ uint8_t battery_service_voltage_to_percent(float volts){
     return 0;
 }
 
+uint8_t battery_service_get_percent(){
+    (void)adc_hal_read_channel(7);    // leitura descatada para evitar
+    vTaskDelay(pdMS_TO_TICKS(1));
+    uint16_t raw = adc_hal_read_channel(7);
+    float volts = battery_service_adc_to_voltage(raw);
+    uint8_t percent = battery_service_voltage_to_percent(volts);
+	
+    return percent;
+}
+
+void battery_service_update_display(){
+    uint8_t newPercent = battery_service_get_percent();
+    display_service_showBatteryIcon(newPercent);
+}
+
 
 void battery_service_task(void *args){
     (void)args;
 
     while (1) {
-	(void)adc_hal_read_channel(7);    // leitura descatada para evitar
-	vTaskDelay(pdMS_TO_TICKS(1));
-        uint16_t raw = adc_hal_read_channel(7);
-        float volts = battery_service_adc_to_voltage(raw);
-        uint8_t percent = battery_service_voltage_to_percent(volts);
-	
-        display_service_showBatteryIcon(percent);
-
+	battery_service_update_display();
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }

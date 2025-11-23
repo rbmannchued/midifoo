@@ -73,6 +73,8 @@ void action_increase_offset(void* ctx) {
     }
     display_service_showNoteBank(noteOffset);
     led_service_update_bank(noteOffset);
+    battery_service_update_display();
+
 }
 
 void action_decrease_offset(void* ctx) {
@@ -85,6 +87,7 @@ void action_decrease_offset(void* ctx) {
     }
     display_service_showNoteBank(noteOffset);
     led_service_update_bank(noteOffset);
+    battery_service_update_display();
 }
 
 void openToTune(bool option){
@@ -109,6 +112,7 @@ void action_toggle_tunerMode(void *ctx) {
 	tuner_service_init();
         audio_start();
 	vTaskSuspend(xHandlePotsPoll);
+	vTaskSuspend(xHandleBatteryTask);
 	/* sets button task lower priority than audio tuner tasks */
 	vTaskPrioritySet(xHandleButtonPoll, 2);
         vTaskResume(xHandleAudioAcq);
@@ -120,8 +124,10 @@ void action_toggle_tunerMode(void *ctx) {
 	vTaskDelay(5);
 	pots_service_init();
 	display_service_showNoteBank(noteOffset);
+	battery_service_update_display();
 	vTaskPrioritySet(xHandleButtonPoll, 3);
 	vTaskResume(xHandlePotsPoll);
+	vTaskResume(xHandleBatteryTask);
 	vTaskSuspend(xHandleAudioAcq);
         vTaskSuspend(xHandleFFTProc);
     }
@@ -180,7 +186,7 @@ void led_setup(void) {
 void display_startTask(){
     display_service_init();
     display_service_showNoteBank(noteOffset);
-    /* display_service_showBatteryIcon(50); */
+    battery_service_update_display();
     vTaskDelete(NULL);
 }
 
