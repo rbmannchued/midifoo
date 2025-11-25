@@ -1,7 +1,7 @@
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 
-#include "hc4053_hal.h"
+#include "hc595_hal.h"
 
 #define SER_PIN GPIO12
 #define RCLK_PIN GPIO13
@@ -10,13 +10,13 @@
 #define PORT_PINS GPIOB
 #define RCC_PORT_PINS RCC_GPIOB
 
-void hc4053_hal_init(void){
+void hc595_hal_init(void){
     rcc_periph_clock_enable(RCC_PORT_PINS);
     gpio_mode_setup(PORT_PINS, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, SER_PIN | RCLR_PIN | RCLK_PIN);
 
 }
 
-void hc4053_hal_byte_write(uint8_t byte){
+void hc595_hal_byte_write(uint8_t byte){
     for (int i = 7; i >= 0; i--) {
         // Define SER
         if ((byte >> i) & 0x01)
