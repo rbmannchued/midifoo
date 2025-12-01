@@ -3,7 +3,7 @@
 #include "hc05_hal.h"
 
 void midibt_init(){
-    usart_hal_init(115200);
+    usart_hal_init(9600);
     hc05_init();
 }
 

@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define FRAME_LEN     2048
+#define FRAME_LEN     4096
 #define SAMPLE_RATE   4000.0f
 #define NUM_TAPS      64
 #define ADC_MAX_VAL   4095.0f
