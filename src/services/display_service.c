@@ -51,7 +51,7 @@ void display_service_init(){
 void display_service_showNoteBank(int8_t offset) {
     char buf[8];
     snprintf(buf, sizeof(buf), "A%d", offset);
-    ssd1306_Fill(Black);
+    ssd1306_FillRectangle(10, 40, 90, 11, Black); // clean the region first
     ssd1306_SetCursor(50, 20);
     ssd1306_WriteString(buf, Font_16x26, White);
     ssd1306_UpdateScreen();

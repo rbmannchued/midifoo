@@ -73,7 +73,6 @@ void action_increase_offset(void* ctx) {
     }
     display_service_showNoteBank(noteOffset);
     led_service_update_bank(noteOffset);
-    battery_service_update_display();
 
 }
 
@@ -87,7 +86,6 @@ void action_decrease_offset(void* ctx) {
     }
     display_service_showNoteBank(noteOffset);
     led_service_update_bank(noteOffset);
-    battery_service_update_display();
 }
 
 void openToTune(bool option){
