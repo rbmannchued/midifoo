@@ -27,8 +27,9 @@ void adc_hal_init(const adc_hal_config_t *cfg) {
 
     adc_set_clk_prescale(ADC_CCR_ADCPRE_BY8);
     adc_set_resolution(cfg->adc, ADC_CR1_RES_12BIT);
-    adc_set_single_conversion_mode(cfg->adc);
+    adc_set_single_conversion_mode(cfg->adc); 
     adc_set_regular_sequence(cfg->adc, 1, &cfg->channel);
+    adc_set_sample_time(ADC1, ADC_CHANNEL7, ADC_SMPR_SMP_144CYC);
 
     if (cfg->irq != 0) {
         adc_enable_eoc_interrupt(cfg->adc);

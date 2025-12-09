@@ -122,3 +122,7 @@ void display_service_showBatteryIcon(uint8_t level) {
 
     ssd1306_UpdateScreen();
 }
+
+void display_service_eraseScreen(){
+    ssd1306_Fill(Black);
+}

@@ -56,7 +56,7 @@ void action_pressed(void *ctx) {
     button_states[bank][idx] = !button_states[bank][idx];
     led_service_toggle_led(bank, idx);
 
-    uint8_t velocity = button_states[bank][idx] ? 127 : 0;
+    uint8_t velocity = button_states[bank][idx] ? 0 : 127;
     gpio_clear(GPIOC, GPIO13);
     midiusb_send_cc(noteValues[idx] + bank, velocity, MIDI_CHANNEL);
     midibt_send_cc(noteValues[idx] + bank, velocity, MIDI_CHANNEL);
@@ -121,6 +121,7 @@ void action_toggle_tunerMode(void *ctx) {
 	tuner_service_stop();
 	vTaskDelay(5);
 	pots_service_init();
+	display_service_eraseScreen();
 	display_service_showNoteBank(noteOffset);
 	battery_service_update_display();
 	vTaskPrioritySet(xHandleButtonPoll, 3);
@@ -222,7 +223,7 @@ int main(void) {
     //set hc4053 control pin as output
     gpio_mode_setup(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO6);
     cm_enable_interrupts(); // enables global interrupts needed for tuner adc */
-    openToTune(true);
+    openToTune(false);
     xTaskCreate(display_startTask, "displayTask", 512, NULL, 6, NULL);
     xTaskCreate(buttons_poll_task, "buttonTask", 512, NULL, 3, &xHandleButtonPoll);
     xTaskCreate(tuner_audioAcq_task, "tunerAudioAcq", 512, NULL, 3, &xHandleAudioAcq);
