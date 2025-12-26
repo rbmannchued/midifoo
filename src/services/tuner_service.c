@@ -34,8 +34,8 @@ static adc_hal_config_t tuner_adc_cfg = {
 static timer_hal_config_t tuner_timer_cfg = {
     .timer = TIM2,
     .rcc_timer = RCC_TIM2,
-    .prescaler = 209,
-    .period = 99  
+    .prescaler = 239,
+    .period    = 99
 };
 
 void tuner_service_init(){
