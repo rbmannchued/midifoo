@@ -184,6 +184,7 @@ void led_setup(void) {
 }
 void display_startTask(){
     display_service_init();
+    display_service_showLogo();
     display_service_showNoteBank(noteOffset);
     vTaskDelete(NULL);
 }
@@ -207,7 +208,6 @@ void pots_poll_task(void *args) {
         vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
-
 
 int main(void) {
     rcc_clock_setup_pll(&rcc_hse_25mhz_3v3[RCC_CLOCK_3V3_96MHZ]);

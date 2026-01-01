@@ -16,5 +16,7 @@ void display_service_showNoSignal(void);
 void display_service_showBatteryIcon(uint8_t level);
 
 void display_service_eraseScreen();
+
+void display_service_showLogo();
   
 #endif
