@@ -1,5 +1,5 @@
 # MidiFoo
-A bluetooth/USB MIDI controller/footswich with with a built-in guitar tuner, powered by STM32F4.
+A bluetooth/USB MIDI controller/footswitch with a built-in guitar tuner, powered by STM32F4.
 
 The idea is to get an inexpensive stompbox that meets all the needs of a musician in a live perfomance. All the parts of this projects are found in the open-source GPL license which means free to use and modify, you can build your own midifoo with the instructions below.
 <p>
