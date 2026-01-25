@@ -1,240 +1,259 @@
-#include "CppUTest/TestHarness.h"
-#include "CppUTest/CommandLineTestRunner.h"
-#include <cmath>
-#include <iostream>
-#include <fstream>
-#include <vector>
-#include <string>
+#include "test_dsp.h"
 
-extern "C" {
-    #include "dsp.h"
-    #include "arm_math.h"
+#include "CppUTest/TestHarness.h"
+#include "CppUTestExt/MockSupport.h"
+#include "CppUTest/CommandLineTestRunner.h"
+#include "CppUTest/MemoryLeakDetectorNewMacros.h"
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+#define TEST_ENVIRONMENT
+
+// Tolerância para comparação de frequências (em Hz)
+#define FREQUENCY_TOLERANCE 5.0f
+
+// Estrutura para header WAV simplificado
+#pragma pack(push, 1)
+typedef struct {
+    char chunkId[4];
+    uint32_t chunkSize;
+    char format[4];
+    char subchunk1Id[4];
+    uint32_t subchunk1Size;
+    uint16_t audioFormat;
+    uint16_t numChannels;
+    uint32_t sampleRate;
+    uint32_t byteRate;
+    uint16_t blockAlign;
+    uint16_t bitsPerSample;
+    char subchunk2Id[4];
+    uint32_t subchunk2Size;
+} WavHeader;
+#pragma pack(pop)
+
+// Função para carregar arquivo WAV
+void load_wav_file(const char* filename, uint16_t** buffer, int* size) {
+    FILE* file = fopen(filename, "rb");
+    if (!file) {
+        FAIL("Failed to open WAV file");
+        return;
+    }
+
+    WavHeader header;
+    fread(&header, sizeof(WavHeader), 1, file);
+
+    // Verifica se é um arquivo WAV válido
+    if (memcmp(header.chunkId, "RIFF", 4) != 0 ||
+        memcmp(header.format, "WAVE", 4) != 0) {
+        fclose(file);
+        FAIL("Invalid WAV file");
+        return;
+    }
+
+    printf("WAV Info: %d Hz, %d channels, %d-bit\n", 
+           header.sampleRate, header.numChannels, header.bitsPerSample);
+
+    // Calcula número de amostras
+    int total_bytes = header.subchunk2Size;
+    int bytes_per_sample = header.bitsPerSample / 8;
+    int samples_per_channel = total_bytes / (bytes_per_sample * header.numChannels);
+    
+    *size = samples_per_channel;
+    *buffer = (uint16_t*)malloc(*size * sizeof(uint16_t));
+    
+    if (header.numChannels == 1 && header.bitsPerSample == 16) {
+        // Mono 16-bit - lê diretamente
+        fread(*buffer, sizeof(uint16_t), *size, file);
+    }
+    else if (header.bitsPerSample == 32) {
+        // 32-bit float - converte para 12-bit
+        float* float_buffer = (float*)malloc(samples_per_channel * header.numChannels * sizeof(float));
+        fread(float_buffer, sizeof(float), samples_per_channel * header.numChannels, file);
+        
+        for (int i = 0; i < samples_per_channel; i++) {
+            float sample;
+            if (header.numChannels == 1) {
+                sample = float_buffer[i];
+            } else {
+                sample = (float_buffer[i * 2] + float_buffer[i * 2 + 1]) / 2.0f;
+            }
+            // Normaliza de -1.0..1.0 para 0..4095
+            sample = fmaxf(-1.0f, fminf(1.0f, sample)); // Clamp
+            (*buffer)[i] = (uint16_t)((sample + 1.0f) * 2047.5f);
+        }
+        
+        free(float_buffer);
+    }
+    else {
+        // Outros formatos - tentativa genérica
+        printf("Warning: Unsupported format - attempting generic conversion\n");
+        uint8_t* raw_buffer = (uint8_t*)malloc(total_bytes);
+        fread(raw_buffer, 1, total_bytes, file);
+        
+        // Simples conversão (pode precisar de ajustes)
+        for (int i = 0; i < samples_per_channel; i++) {
+            // Pega primeiro canal ou média
+            uint16_t sample = 0;
+            if (header.bitsPerSample == 8) {
+                sample = raw_buffer[i * header.numChannels] * 16;
+            } else if (header.bitsPerSample == 16) {
+                int16_t* samples_16 = (int16_t*)raw_buffer;
+                sample = (samples_16[i * header.numChannels] + 32768) * 4095.0f / 65535.0f;
+            }
+            (*buffer)[i] = sample;
+        }
+        
+        free(raw_buffer);
+    }
+
+    fclose(file);
 }
 
-TEST_GROUP(DSPBasicTest) {
-    volatile uint16_t test_buffer[FRAME_LEN];
+// Função para processar arquivo WAV e obter frequência detectada
+float test_dsp_process_with_wav(const char* filename) {
+    uint16_t* buffer = NULL;
+    int total_samples = 0;
     
+    load_wav_file(filename, &buffer, &total_samples);
+    
+    if (!buffer || total_samples == 0) {
+        return 0.0f;
+    }
+
+    // Inicializa o DSP
+    dsp_init();
+    
+    // Processa em frames (ajusta conforme necessário)
+    float detected_freq = 0.0f;
+    int frames_processed = 0;
+    
+    for (int i = 0; i + FRAME_LEN <= total_samples; i += FRAME_LEN) {
+        float freq = dsp_process(buffer + i);
+        if (freq > 0) {
+            detected_freq = freq;
+            frames_processed++;
+        }
+    }
+    
+    free(buffer);
+    
+    return detected_freq;
+}
+
+// Grupo de testes
+TEST_GROUP(DSPTests) {
     void setup() {
-        // Initialize with silence (mid-point for 12-bit ADC)
-        for(int i = 0; i < FRAME_LEN; i++) {
-            test_buffer[i] = 2048;
-        }
-        dsp_init();
     }
     
-    void generate_sine_wave(float frequency, float amplitude) {
-        for(int i = 0; i < FRAME_LEN; i++) {
-            float sample = sinf(2.0f * PI * frequency * i / SAMPLE_RATE);
-            test_buffer[i] = (uint16_t)(2048 + amplitude * 2047.0f * sample);
-        }
-    }
-    
-    bool load_wav_file(const std::string& filename, volatile uint16_t* buffer, int max_samples) {
-        std::ifstream file(filename, std::ios::binary);
-        if (!file.is_open()) {
-            std::cout << "Erro: Não foi possível abrir o arquivo " << filename << std::endl;
-            return false;
-        }
-        
-        // Lê o cabeçalho WAV (44 bytes)
-        char header[44];
-        file.read(header, 44);
-        
-        if (file.gcount() != 44) {
-            std::cout << "Erro: Cabeçalho WAV incompleto em " << filename << std::endl;
-            return false;
-        }
-        
-        // Verifica se é um arquivo WAV válido
-        if (header[0] != 'R' || header[1] != 'I' || header[2] != 'F' || header[3] != 'F') {
-            std::cout << "Erro: Arquivo " << filename << " não é um WAV válido" << std::endl;
-            return false;
-        }
-        
-        // Extrai informações do cabeçalho
-        int16_t audio_format = *(int16_t*)(header + 20);
-        int16_t num_channels = *(int16_t*)(header + 22);
-        int32_t sample_rate = *(int32_t*)(header + 24);
-        int16_t bits_per_sample = *(int16_t*)(header + 34);
-        int32_t data_size = *(int32_t*)(header + 40);
-        
-        std::cout << "Carregando " << filename << " - " 
-                  << sample_rate << "Hz, " << bits_per_sample << "bits, "
-                  << num_channels << " canais, formato: " << audio_format << std::endl;
-        
-        // Verifica se o sample rate é compatível
-        if (sample_rate != (int32_t)SAMPLE_RATE) {
-            std::cout << "Aviso: Sample rate do arquivo (" << sample_rate 
-                      << "Hz) difere do esperado (" << SAMPLE_RATE << "Hz)" << std::endl;
-        }
-        
-        // Calcula número de amostras
-        int bytes_per_sample = bits_per_sample / 8;
-        int samples_to_read = data_size / bytes_per_sample / num_channels;
-        if (samples_to_read > max_samples) {
-            samples_to_read = max_samples;
-        }
-        
-        std::cout << "Lendo " << samples_to_read << " amostras (" << bytes_per_sample << " bytes por sample)" << std::endl;
-        
-        // Lê os dados de áudio
-        if (bits_per_sample == 16) {
-            int16_t sample;
-            for (int i = 0; i < samples_to_read && i < max_samples; i++) {
-                if (!file.read(reinterpret_cast<char*>(&sample), sizeof(sample))) {
-                    break;
-                }
-                
-                // Converte de 16-bit signed para 12-bit unsigned (0-4095)
-                int32_t converted = ((int32_t)sample + 32768) * 4095 / 65536;
-                buffer[i] = (uint16_t)converted;
-            }
-        } else if (bits_per_sample == 32) {
-            // Para arquivos 32-bit (provavelmente float ou int32)
-            if (audio_format == 3) { // WAVE_FORMAT_IEEE_FLOAT
-                float sample;
-                for (int i = 0; i < samples_to_read && i < max_samples; i++) {
-                    if (!file.read(reinterpret_cast<char*>(&sample), sizeof(sample))) {
-                        break;
-                    }
-                    // Converte de float [-1.0 to 1.0] para 12-bit unsigned [0-4095]
-                    float normalized = (sample + 1.0f) / 2.0f; // [0.0 to 1.0]
-                    buffer[i] = (uint16_t)(normalized * 4095.0f);
-                }
-            } else { // Assume PCM signed 32-bit
-                int32_t sample;
-                for (int i = 0; i < samples_to_read && i < max_samples; i++) {
-                    if (!file.read(reinterpret_cast<char*>(&sample), sizeof(sample))) {
-                        break;
-                    }
-                    // Converte de 32-bit signed para 12-bit unsigned
-                    int64_t converted = ((int64_t)sample + 2147483648) * 4095 / 4294967295;
-                    buffer[i] = (uint16_t)converted;
-                }
-            }
-        } else if (bits_per_sample == 8) {
-            int8_t sample;
-            for (int i = 0; i < samples_to_read && i < max_samples; i++) {
-                if (!file.read(reinterpret_cast<char*>(&sample), sizeof(sample))) {
-                    break;
-                }
-                // Converte de 8-bit signed para 12-bit unsigned
-                buffer[i] = (uint16_t)(((int32_t)sample + 128) * 4095 / 256);
-            }
-        } else {
-            std::cout << "Erro: Bits per sample não suportado: " << bits_per_sample << std::endl;
-            return false;
-        }
-        
-        file.close();
-        std::cout << "Carregadas " << samples_to_read << " amostras de " << filename << std::endl;
-        return true;
+    void teardown() {
     }
 };
 
-
-// Teste com arquivos WAV reais das notas de guitarra (32-bit compatível)
-TEST(DSPBasicTest, DSPProcess_DetectsGuitarNotesFromWAV) {
-    struct GuitarNote {
-        std::string filename;
-        float expected_freq;
-        std::string note_name;
-    };
+TEST(DSPTests, Test_A_110_Hz_Strat_Neck) {
+    const char* filename = "samples/A_110_strato_neck.wav";
+    float expected = 110.0f;
+    float detected = test_dsp_process_with_wav(filename);
     
-    std::vector<GuitarNote> test_notes = {
-        {"samples/E_82_strato_neck.wav", 82.41f, "E2 (82.41Hz)"},
-        {"samples/A_110_strato_neck.wav", 110.00f, "A2 (110.00Hz)"},
-        {"samples/D_146_strato_neck.wav", 146.83f, "D3 (146.83Hz)"},
-        {"samples/G_196_strato_neck.wav", 196.00f, "G3 (196.00Hz)"},
-        {"samples/B_247_strato_neck.wav", 246.94f, "B3 (246.94Hz)"},
-        {"samples/E_330_strato_neck.wav", 329.63f, "E3 (329.63Hz)"}
-    };
+    printf("\nTest: %s\n", filename);
+    printf("Expected: %.1f Hz, Detected: %.1f Hz\n", expected, detected);
     
-    const float TOLERANCE = 2.0f; // ±2Hz de tolerância
-    int tests_passed = 0;
-    int tests_total = 0;
-    
-    for (const auto& note : test_notes) {
-        std::cout << "\n=== Testando " << note.note_name << " ===" << std::endl;
-        tests_total++;
-        
-        // Carrega o arquivo WAV
-        if (load_wav_file(note.filename, test_buffer, FRAME_LEN)) {
-            // Processa o sinal
-            float detected_freq = dsp_process(test_buffer);
-            
-            std::cout << "Frequência esperada: " << note.expected_freq 
-                      << " Hz, Detectada: " << detected_freq << " Hz" << std::endl;
-            
-            if (detected_freq > 0) {
-                float error = fabsf(detected_freq - note.expected_freq);
-                std::cout << "Erro: " << error << " Hz (tolerância: ±" << TOLERANCE << " Hz)" << std::endl;
-                
-                // Verifica se está dentro da tolerância
-                if (error <= TOLERANCE) {
-                    std::cout << "DETECÇÃO PRECISA" << std::endl;
-                    tests_passed++;
-                } else {
-                    std::cout << " DETECÇÃO FORA DA TOLERÂNCIA" << std::endl;
-                }
-                
-                // Para testes unitários, ainda verificamos mas não falhamos imediatamente
-                // CHECK_TRUE(error <= TOLERANCE);
-            } else {
-                std::cout << "FALHA NA DETECÇÃO (frequência = 0)" << std::endl;
-                // CHECK_TRUE(detected_freq > 0);
-            }
-        } else {
-            std::cout << " ARQUIVO NÃO ENCONTRADO OU INVÁLIDO: " << note.filename << std::endl;
-        }
-    }
-    
-    std::cout << "\n=== RESUMO ===" << std::endl;
-    std::cout << "Testes passados: " << tests_passed << "/" << tests_total << std::endl;
-    
-    // Verifica se pelo menos alguns testes passaram
-    CHECK_TRUE(tests_passed > 0);
+    DOUBLES_EQUAL(expected, detected, FREQUENCY_TOLERANCE);
 }
 
-// Teste alternativo mais tolerante para debugging
-TEST(DSPBasicTest, DSPProcess_DetectsGuitarNotesWithHigherTolerance) {
-    struct GuitarNote {
-        std::string filename;
-        float expected_freq;
-        std::string note_name;
-    };
+TEST(DSPTests, Test_B_247_Hz_Strat_Neck) {
+    const char* filename = "samples/B_247_strato_neck.wav";
+    float expected = 246.94f; // B3 = 246.94 Hz
+    float detected = test_dsp_process_with_wav(filename);
     
-    std::vector<GuitarNote> test_notes = {
-        {"samples/E_82_strato_neck.wav", 82.41f, "E2 (82.41Hz)"},
-        {"samples/A_110_strato_neck.wav", 110.00f, "A2 (110.00Hz)"},
-        {"samples/D_146_strato_neck.wav", 146.83f, "D3 (146.83Hz)"}
-    };
+    printf("\nTest: %s\n", filename);
+    printf("Expected: %.1f Hz, Detected: %.1f Hz\n", expected, detected);
     
-    const float TOLERANCE = 5.0f; // Tolerância maior para debugging
+    DOUBLES_EQUAL(expected, detected, FREQUENCY_TOLERANCE);
+}
+
+TEST(DSPTests, Test_D_146_Hz_Strat_Neck) {
+    const char* filename = "samples/D_146_strato_neck.wav";
+    float expected = 146.83f; // D3 = 146.83 Hz
+    float detected = test_dsp_process_with_wav(filename);
     
-    for (const auto& note : test_notes) {
-        std::cout << "\n=== Testando " << note.note_name << " (tolerância: ±" << TOLERANCE << "Hz) ===" << std::endl;
-        
-        if (load_wav_file(note.filename, test_buffer, FRAME_LEN)) {
-            float detected_freq = dsp_process(test_buffer); // <<<< DSP FUNCTION
-            
-            if (detected_freq > 0) {
-                float error = fabsf(detected_freq - note.expected_freq);
-                std::cout << "Esperado: " << note.expected_freq << "Hz, Detectado: " << detected_freq 
-                          << "Hz, Erro: " << error << "Hz" << std::endl;
-                
-                if (error <= TOLERANCE) {
-                    std::cout << "✓ DENTRO DA TOLERÂNCIA" << std::endl;
-                } else {
-                    std::cout << "✗ FORA DA TOLERÂNCIA" << std::endl;
-                }
-                
-                // Verificação mais flexível para debugging
-                CHECK_TRUE(error <= TOLERANCE);
-            } else {
-                std::cout << "✗ NENHUMA FREQUÊNCIA DETECTADA" << std::endl;
-                CHECK_TRUE(detected_freq > 0);
-            }
+    printf("\nTest: %s\n", filename);
+    printf("Expected: %.1f Hz, Detected: %.1f Hz\n", expected, detected);
+    
+    DOUBLES_EQUAL(expected, detected, FREQUENCY_TOLERANCE);
+}
+
+TEST(DSPTests, Test_E_330_Hz_Strat_Neck) {
+    const char* filename = "samples/E_330_strato_neck.wav";
+    float expected = 329.63f; // E4 = 329.63 Hz
+    float detected = test_dsp_process_with_wav(filename);
+    
+    printf("\nTest: %s\n", filename);
+    printf("Expected: %.1f Hz, Detected: %.1f Hz\n", expected, detected);
+    
+    DOUBLES_EQUAL(expected, detected, FREQUENCY_TOLERANCE);
+}
+
+TEST(DSPTests, Test_E_82_Hz_Strat_Neck) {
+    const char* filename = "samples/E_82_strato_neck.wav";
+    float expected = 82.41f; // E2 = 82.41 Hz
+    float detected = test_dsp_process_with_wav(filename);
+    
+    printf("\nTest: %s\n", filename);
+    printf("Expected: %.1f Hz, Detected: %.1f Hz\n", expected, detected);
+    
+    DOUBLES_EQUAL(expected, detected, FREQUENCY_TOLERANCE);
+}
+
+TEST(DSPTests, Test_G_196_Hz_Strat_Neck) {
+    const char* filename = "samples/G_196_strato_neck.wav";
+    float expected = 196.00f; // G3 = 196.00 Hz
+    float detected = test_dsp_process_with_wav(filename);
+    
+    printf("\nTest: %s\n", filename);
+    printf("Expected: %.1f Hz, Detected: %.1f Hz\n", expected, detected);
+    
+    DOUBLES_EQUAL(expected, detected, FREQUENCY_TOLERANCE);
+}
+
+// Teste de performance (opcional)
+TEST(DSPTests, Test_Performance) {
+    const char* filename = "samples/A_110_strato_bridge.wav";
+    uint16_t* buffer = NULL;
+    int total_samples = 0;
+    
+    load_wav_file(filename, &buffer, &total_samples);
+    
+    if (!buffer || total_samples == 0) {
+        FAIL("Failed to load sample for performance test");
+        return;
+    }
+    
+    dsp_init();
+    
+    // Mede tempo de processamento
+    clock_t start = clock();
+    int iterations = 100;
+    
+    for (int iter = 0; iter < iterations; iter++) {
+        for (int i = 0; i + FRAME_LEN <= total_samples; i += FRAME_LEN) {
+            dsp_process(buffer + i);
         }
     }
+    
+    clock_t end = clock();
+    double cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
+    
+    printf("\nPerformance Test:\n");
+    printf("  Total samples: %d\n", total_samples);
+    printf("  Frame size: %d\n", FRAME_LEN);
+    printf("  Iterations: %d\n", iterations);
+    printf("  Total time: %.3f seconds\n", cpu_time_used);
+    printf("  Time per frame: %.6f seconds\n", 
+           cpu_time_used / (iterations * (total_samples / FRAME_LEN)));
+    
+    free(buffer);
 }

@@ -14,7 +14,7 @@ end
 filename = argv(){1};
 
 % ===== parâmetros do "dsp.h" =====
-FRAME_LEN   = 2048;
+FRAME_LEN   = 4096;
 SAMPLE_RATE = 4000;
 ADC_MAX_VAL = 4095;
 NUM_TAPS    = 64;
