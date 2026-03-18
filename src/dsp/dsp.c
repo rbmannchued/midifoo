@@ -9,6 +9,7 @@ float32_t output_fft[FRAME_LEN];
 arm_rfft_fast_instance_f32 fft_instance;
 arm_fir_instance_f32 fir_instance;
 float32_t fir_state[FRAME_LEN + NUM_TAPS - 1];
+static float32_t hanning_window[FRAME_LEN / 2]; // simetria: w[i] == w[N-1-i], armazena só metade (8KB)
 
 
 float dsp_last_peak = 0.0f;
@@ -30,8 +31,8 @@ void preprocess_signal(volatile uint16_t *buffer, volatile float32_t *output) {
         float y = alpha * (y_prev + x - x_prev);
         x_prev = x;
         y_prev = y;
-        float window = 0.5f * (1.0f - cosf(2.0f * PI * i / (FRAME_LEN - 1)));
-        output[i] = y * window;
+        int wi = (i < FRAME_LEN / 2) ? i : (FRAME_LEN - 1 - i);
+        output[i] = y * hanning_window[wi]; // janela pré-computada (simetria)
     }
 }
 
@@ -48,18 +49,12 @@ void compute_magnitude(float32_t *fft_out, float32_t *mag_out) {
 }
 
 int find_peak_index(float32_t *spectrum, int len, float *out_max) {
-    float max_value = 0.0f;
-    int max_index = 0;
-    int start_index = 5; // ignora bins muito baixos
-
-    for (int i = start_index; i < len; i++) {
-        if (spectrum[i] > max_value) {
-            max_value = spectrum[i];
-            max_index = i;
-        }
-    }
+    const int start_index = 5; // ignora bins muito baixos
+    float max_value;
+    uint32_t max_idx;
+    arm_max_f32(spectrum + start_index, len - start_index, &max_value, &max_idx);
     if (out_max) *out_max = max_value;
-    return max_index;
+    return (int)(max_idx + start_index);
 }
 
 float index_to_frequency(int index, float sample_rate, int frame_len) {
@@ -70,37 +65,34 @@ void apply_hps_adaptive(float *magnitude_fft, float *hps_result, int hps_len,
     const float EPS = 1e-9f;
     float bin_hz = sample_rate / (float)frame_len;
 
-    for (int i = 0; i < hps_len; i++) {
-        float freq = i * bin_hz;
-        int max_harm = 1;
+    // Limites de bin pré-calculados para evitar multiplicação por float no loop
+    const int bin_120hz = (int)(120.0f / bin_hz);  // ~122 bins
+    const int bin_300hz = (int)(300.0f / bin_hz);  // ~307 bins
 
-        // Menos agressivo em tons graves
-        if (freq < 120.0f) {
-            max_harm = 3;
-        } else if (freq < 300.0f) {
-            max_harm = 2;
-        } else {
-            max_harm = 1;
-        }
-
-        float acc = 0.0f;
-        int count = 0;
-
-        for (int decimation = 1; decimation <= max_harm; decimation++) {
-            int idx = i * decimation;
-            if (idx < hps_len) {
-                acc += logf(magnitude_fft[idx] + EPS);
-                count++;
-            } else break;
-        }
-
-        // média logarítmica (normaliza pela contagem)
-        hps_result[i] = expf(acc / (float)count);
+    // Zona max_harm=3: média geométrica = cbrt(a*b*c) — sem logf/expf
+    for (int i = 0; i < bin_120hz && i < hps_len; i++) {
+        float a = magnitude_fft[i] + EPS;
+        int i2 = i * 2, i3 = i * 3;
+        float b = (i2 < hps_len) ? magnitude_fft[i2] + EPS : EPS;
+        float c = (i3 < hps_len) ? magnitude_fft[i3] + EPS : EPS;
+        float hps_val = cbrtf(a * b * c);
+        hps_result[i] = 0.7f * hps_val + 0.3f * magnitude_fft[i];
     }
 
-    // mistura 70% HPS e 30% espectro original para estabilidade
-    for (int i = 0; i < hps_len; i++) {
-        hps_result[i] = 0.7f * hps_result[i] + 0.3f * magnitude_fft[i];
+    // Zona max_harm=2: média geométrica = sqrt(a*b) — arm_sqrt_f32 é instrução única no Cortex-M4
+    for (int i = bin_120hz; i < bin_300hz && i < hps_len; i++) {
+        float a = magnitude_fft[i] + EPS;
+        int i2 = i * 2;
+        float b = (i2 < hps_len) ? magnitude_fft[i2] + EPS : EPS;
+        float hps_val;
+        arm_sqrt_f32(a * b, &hps_val);
+        hps_result[i] = 0.7f * hps_val + 0.3f * magnitude_fft[i];
+    }
+
+    // Zona max_harm=1: HPS = própria magnitude (sem operação adicional)
+    for (int i = bin_300hz; i < hps_len; i++) {
+        float orig = magnitude_fft[i];
+        hps_result[i] = orig + 0.7f * EPS; // 0.7*hps + 0.3*orig com hps=orig+EPS
     }
 }
 
@@ -108,6 +100,10 @@ void dsp_init(void) {
     arm_rfft_fast_init_f32(&fft_instance, FRAME_LEN);
     arm_fir_init_f32(&fir_instance, NUM_TAPS, (float32_t *)fir_coeffs, fir_state, FRAME_LEN);
 
+    // Pré-computa metade da janela Hanning (é simétrica: w[i] == w[N-1-i])
+    for (int i = 0; i < FRAME_LEN / 2; i++) {
+        hanning_window[i] = 0.5f * (1.0f - cosf(2.0f * PI * i / (FRAME_LEN - 1)));
+    }
 }
 
 float dsp_process(volatile uint16_t *buffer) {

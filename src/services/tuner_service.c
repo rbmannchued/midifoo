@@ -1,5 +1,9 @@
 #include "tuner_service.h"
+#include <string.h>
 
+// Processa a cada HOP_SIZE novas amostras (em vez de esperar FRAME_LEN)
+// Latência: HOP_SIZE / SAMPLE_RATE = 512 / 4000 = 128ms
+#define HOP_SIZE 512
 
 //rtos objects
 SemaphoreHandle_t xBufferReadySemaphore = NULL;
@@ -8,11 +12,11 @@ QueueHandle_t xAudioQueue = NULL;
 TaskHandle_t xHandleAudioAcq = NULL;
 TaskHandle_t xHandleFFTProc = NULL;
 
-volatile uint16_t adc_buffer1[FRAME_LEN];
-volatile uint16_t adc_buffer2[FRAME_LEN];
-volatile uint16_t *current_buffer = adc_buffer1;
-volatile uint16_t *processing_buffer = adc_buffer2;
-volatile int buffer_index = 0;
+// Ring buffer: sempre mantém as últimas FRAME_LEN amostras
+static volatile uint16_t adc_ring[FRAME_LEN];
+static volatile uint16_t adc_snapshot[FRAME_LEN];
+static volatile int ring_write = 0;
+static volatile int hop_count = 0;
 
 static void tuner_adc_isr_callback(uint16_t sample);
 
@@ -51,15 +55,11 @@ void tuner_service_init(){
 }
 
 static void tuner_adc_isr_callback(uint16_t sample) {
-    current_buffer[buffer_index++] = sample;
+    adc_ring[ring_write] = sample;
+    ring_write = (ring_write + 1) % FRAME_LEN;
 
-    if (buffer_index >= FRAME_LEN) {
-        buffer_index = 0;
-
-        volatile uint16_t *temp = current_buffer;
-        current_buffer = processing_buffer;
-        processing_buffer = temp;
-
+    if (++hop_count >= HOP_SIZE) {
+        hop_count = 0;
         BaseType_t xHigherPriorityTaskWoken = pdFALSE;
         xSemaphoreGiveFromISR(xBufferReadySemaphore, &xHigherPriorityTaskWoken);
         portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
@@ -87,18 +87,22 @@ void audio_stop() {
     if (xHandleAudioAcq) vTaskSuspend(xHandleAudioAcq);
     if (xHandleFFTProc) vTaskSuspend(xHandleFFTProc);
 
-
-    buffer_index = 0;
-    current_buffer = adc_buffer1;
-    processing_buffer = adc_buffer2;
+    ring_write = 0;
+    hop_count = 0;
 }
 
 
 void tuner_audioAcq_task(void *pvParameters) {
     for (;;) {
         if (xSemaphoreTake(xBufferReadySemaphore, portMAX_DELAY) == pdTRUE) {
+            // Lineariza o ring buffer (amostra mais antiga primeiro)
+            int head = ring_write;
+            int tail_len = FRAME_LEN - head;
+            memcpy((void*)adc_snapshot,            (void*)(adc_ring + head), tail_len * sizeof(uint16_t));
+            memcpy((void*)(adc_snapshot + tail_len), (void*)adc_ring,        head    * sizeof(uint16_t));
 
-            xQueueSend(xAudioQueue, &processing_buffer, portMAX_DELAY);
+            volatile uint16_t *snap = adc_snapshot;
+            xQueueSend(xAudioQueue, &snap, 0); // non-blocking: descarta se queue cheia
         }
     }
 }
@@ -134,8 +138,6 @@ void tuner_processing_task(void *pvParameters) {
                 lastNoteDiff = noteDiff;
                 lastNoteIndex = noteIndex;
             }
-
-            vTaskDelay(pdMS_TO_TICKS(50));
         }
     }
 }
