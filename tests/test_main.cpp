@@ -1,7 +1,7 @@
 #include "CppUTest/CommandLineTestRunner.h"
 
 int main(int argc, char** argv) {
-    printf("=== Teste Simples DSP com CMSIS-DSP ===\n");
+    printf("=== DSP Tests Using Samples ===\n");
     
     return CommandLineTestRunner::RunAllTests(argc, argv);
 }

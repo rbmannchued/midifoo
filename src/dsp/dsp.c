@@ -19,7 +19,7 @@ float dsp_last_peak = 0.0f;
 #define ADC_MAX_VAL 4095.0f
 #endif
 
-#define SILENCE_THRESHOLD 0.015f
+#define SILENCE_THRESHOLD 0.007f
 
 /* Applies Hanning and normalize */
 void preprocess_signal(volatile uint16_t *buffer, volatile float32_t *output) {
@@ -67,7 +67,7 @@ void apply_hps_adaptive(float *magnitude_fft, float *hps_result, int hps_len,
 
     // Limites de bin pré-calculados para evitar multiplicação por float no loop
     const int bin_120hz = (int)(120.0f / bin_hz);  // ~122 bins
-    const int bin_300hz = (int)(300.0f / bin_hz);  // ~307 bins
+    const int bin_300hz = (int)(350.0f / bin_hz);  // ~358 bins — covers E4 (330Hz) with 2-harmonic HPS
 
     // Zona max_harm=3: média geométrica = cbrt(a*b*c) — sem logf/expf
     for (int i = 0; i < bin_120hz && i < hps_len; i++) {
@@ -111,7 +111,7 @@ float dsp_process(volatile uint16_t *buffer) {
     preprocess_signal(buffer, input_signal);
 
     float abs_sum = 0.0f;
-    for (int i = 0; i < FRAME_LEN; i += 4) { // amostragem parcial (¼ das amostras)
+    for (int i = 0; i < FRAME_LEN; i += 4) { // amostragem parcial (1/4 das amostras)
         abs_sum += fabsf(input_signal[i]);
     }
     float mean_abs = abs_sum / (FRAME_LEN / 4);
@@ -136,8 +136,8 @@ float dsp_process(volatile uint16_t *buffer) {
     for (int i = 5; i < n; i++) mean_mag += filtered_signal[i];
     mean_mag /= (float)(n - 5);
 
-    const float floor_abs = 5e-4f;            
-    const float mult = 3.0f;                  
+    const float floor_abs = 3e-4f;
+    const float mult = 2.5f;
     float threshold = fmaxf(floor_abs, mean_mag * mult);
 
     dsp_last_peak = peak;
@@ -156,11 +156,12 @@ float dsp_process(volatile uint16_t *buffer) {
     float half_bin = half_freq * FRAME_LEN / SAMPLE_RATE;
     float third_bin = third_freq * FRAME_LEN / SAMPLE_RATE;
 
-    //verifies octave bins
-    if (half_bin > 5 && filtered_signal[(int)half_bin] > 0.4f * dsp_last_peak) {
-	fundamental = half_freq;
-    } else if (third_bin > 5 && filtered_signal[(int)third_bin] > 0.4f * dsp_last_peak) {
+    //verifies octave bins — check third (freq/3) before half (freq/2) to prefer
+    // the lower fundamental (e.g. A2 at 110Hz detected via E4 at 330Hz, not E3 at 165Hz)
+    if (third_bin > 5 && filtered_signal[(int)third_bin] > 0.3f * dsp_last_peak) {
 	fundamental = third_freq;
+    } else if (half_bin > 5 && filtered_signal[(int)half_bin] > 0.4f * dsp_last_peak) {
+	fundamental = half_freq;
     }
 
     return fundamental;

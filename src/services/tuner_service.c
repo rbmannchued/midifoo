@@ -12,7 +12,7 @@ QueueHandle_t xAudioQueue = NULL;
 TaskHandle_t xHandleAudioAcq = NULL;
 TaskHandle_t xHandleFFTProc = NULL;
 
-// Ring buffer: sempre mantém as últimas FRAME_LEN amostras
+// Ring buffer: sempre mantém as ultimas FRAME_LEN amostras
 static volatile uint16_t adc_ring[FRAME_LEN];
 static volatile uint16_t adc_snapshot[FRAME_LEN];
 static volatile int ring_write = 0;
@@ -98,8 +98,8 @@ void tuner_audioAcq_task(void *pvParameters) {
             // Lineariza o ring buffer (amostra mais antiga primeiro)
             int head = ring_write;
             int tail_len = FRAME_LEN - head;
-            memcpy((void*)adc_snapshot,            (void*)(adc_ring + head), tail_len * sizeof(uint16_t));
-            memcpy((void*)(adc_snapshot + tail_len), (void*)adc_ring,        head    * sizeof(uint16_t));
+            memcpy((void*)adc_snapshot, (void*)(adc_ring + head), tail_len * sizeof(uint16_t));
+            memcpy((void*)(adc_snapshot + tail_len), (void*)adc_ring, head * sizeof(uint16_t));
 
             volatile uint16_t *snap = adc_snapshot;
             xQueueSend(xAudioQueue, &snap, 0); // non-blocking: descarta se queue cheia
@@ -133,7 +133,7 @@ void tuner_processing_task(void *pvParameters) {
                     noteDiff,
                     noteNames[noteIndex % 12],
                     get_noteOctave(noteIndex)
-                );
+		    );
 
                 lastNoteDiff = noteDiff;
                 lastNoteIndex = noteIndex;
