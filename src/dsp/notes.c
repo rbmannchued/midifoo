@@ -1,7 +1,21 @@
 #include "notes.h"
 
 const char *noteNames[] = {"A","A#","B","C","C#","D","D#","E","F","F#","G","G#"};
-const float noteFrequencies[45] = {
+
+const float noteFrequencies[57] = {
+  // --- A0 octave (added for bass guitar support) ---
+  27.50,  // A0
+  29.14,  // A#0
+  30.87,  // B0
+  32.70,  // C1
+  34.65,  // C#1
+  36.71,  // D1
+  38.89,  // D#1
+  41.20,  // E1
+  43.65,  // F1
+  46.25,  // F#1
+  49.00,  // G1
+  51.91,  // G#1
   55.00,  // A1
   58.27,  // A#1
   61.74,  // B1
@@ -9,7 +23,7 @@ const float noteFrequencies[45] = {
   69.30,  // C#2
   73.42,  // D2
   77.78,  // D#2
-  82.41,  // E2
+  82.41,  // E2  ← guitar low E
   87.31,  // F2
   92.50,  // F#2
   98.00,  // G2
@@ -50,37 +64,44 @@ const float noteFrequencies[45] = {
 };
 
 int get_noteOctave(int noteIndex) {
-    return (noteIndex / 12) + 1;
+    return (noteIndex + 9) / 12;
 }
 
 const double get_noteDiff(double frequency, int closestIndex) {
     double noteGap;
     double frequencyGap;
+    int n = sizeof(noteFrequencies) / sizeof(noteFrequencies[0]);
 
     if (frequency < noteFrequencies[closestIndex]) {
-        noteGap = noteFrequencies[closestIndex] - noteFrequencies[closestIndex - 1];
+        if (closestIndex > 0)
+            noteGap = noteFrequencies[closestIndex] - noteFrequencies[closestIndex - 1];
+        else
+            noteGap = noteFrequencies[1] - noteFrequencies[0];
     } else {
-        noteGap = noteFrequencies[closestIndex + 1] - noteFrequencies[closestIndex];
+        if (closestIndex < n - 1)
+            noteGap = noteFrequencies[closestIndex + 1] - noteFrequencies[closestIndex];
+        else
+            noteGap = noteFrequencies[n - 1] - noteFrequencies[n - 2];
     }
-  
+
     frequencyGap = fabs(frequency - noteFrequencies[closestIndex]) / noteGap * 100;
     if (frequency < noteFrequencies[closestIndex]) {
         frequencyGap = -frequencyGap;
     }
     return frequencyGap;
-};
+}
 
-const int get_closestNoteIndex(double frequency){
+const int get_closestNoteIndex(double frequency) {
     float minDiff = 1e9;
     int closestIndex = 0;
+    int n = sizeof(noteFrequencies) / sizeof(noteFrequencies[0]);
 
-    for (int i = 1; i < sizeof(noteFrequencies) / sizeof(noteFrequencies[0]); i++) {
-	float diff = fabs(frequency - noteFrequencies[i]);
-	if (diff < minDiff) {
-	    minDiff = diff;
-	    closestIndex = i;
-	}
+    for (int i = 0; i < n; i++) {
+        float diff = fabs(frequency - noteFrequencies[i]);
+        if (diff < minDiff) {
+            minDiff = diff;
+            closestIndex = i;
+        }
     }
     return closestIndex;
-    
-};
+}
