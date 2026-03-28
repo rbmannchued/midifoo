@@ -26,29 +26,13 @@ void preprocess_signal(volatile uint16_t *buffer, volatile float32_t *output) {
     // IIR HPF: y[n] = alpha * (y[n-1] + x[n] - x[n-1])
     const float alpha = 0.97f;
     static float x_prev = 0.0f, y_prev = 0.0f;
-
-    // Biquad notch at 60 Hz (Brazil mains hum). Direct Form II.
-    // H(z) = (1 - 1.9911z^-1 + z^-2) / (1 - 1.9853z^-1 + 0.9940z^-2)
-    // r=0.997: ~-0.5 dB at A1(55 Hz), deep null at 60 Hz.
-    static float nw1 = 0.0f, nw2 = 0.0f;
-    const float nb1 = -1.991124f; //  -2*cos(2pi*60/4000)
-    const float na1 = -1.985331f; //  -2*r*cos(2pi*60/4000)
-    const float na2 =  0.994009f; //  r^2
-
     for (int i = 0; i < FRAME_LEN; i++) {
         float x = ((float)buffer[i] / ADC_MAX_VAL); // normalize 0..1
         float y = alpha * (y_prev + x - x_prev);
         x_prev = x;
         y_prev = y;
-
-        // notch: w = y - a1*w1 - a2*w2;  out = w + b1*w1 + w2
-        float w = y - na1 * nw1 - na2 * nw2;
-        float notched = w + nb1 * nw1 + nw2;
-        nw2 = nw1;
-        nw1 = w;
-
         int wi = (i < FRAME_LEN / 2) ? i : (FRAME_LEN - 1 - i);
-        output[i] = notched * hanning_window[wi];
+        output[i] = y * hanning_window[wi]; // janela pré-computada (simetria)
     }
 }
 
@@ -65,9 +49,7 @@ void compute_magnitude(float32_t *fft_out, float32_t *mag_out) {
 }
 
 int find_peak_index(float32_t *spectrum, int len, float *out_max) {
-    // Skip bins below ~30 Hz (below bass E1 = 41.2 Hz).
-    // Without this, HPS at bin_E0 = cbrt(noise * mag_E1 * noise) can exceed bin_E1.
-    const int start_index = (int)(30.0f * FRAME_LEN / SAMPLE_RATE);
+    const int start_index = 5; // ignora bins muito baixos
     float max_value;
     uint32_t max_idx;
     arm_max_f32(spectrum + start_index, len - start_index, &max_value, &max_idx);
@@ -83,11 +65,10 @@ void apply_hps_adaptive(float *magnitude_fft, float *hps_result, int hps_len,
     const float EPS = 1e-9f;
     float bin_hz = sample_rate / (float)frame_len;
 
-    // Limites de bin pré-calculados para evitar multiplicação por float no loop
-    const int bin_120hz = (int)(120.0f / bin_hz);  // ~122 bins
-    const int bin_300hz = (int)(350.0f / bin_hz);  // ~358 bins — covers E4 (330Hz) with 2-harmonic HPS
 
-    // Zona max_harm=3: média geométrica = cbrt(a*b*c) — sem logf/expf
+    const int bin_120hz = (int)(120.0f / bin_hz);
+    const int bin_300hz = (int)(350.0f / bin_hz);
+
     for (int i = 0; i < bin_120hz && i < hps_len; i++) {
         float a = magnitude_fft[i] + EPS;
         int i2 = i * 2, i3 = i * 3;
@@ -97,7 +78,7 @@ void apply_hps_adaptive(float *magnitude_fft, float *hps_result, int hps_len,
         hps_result[i] = 0.7f * hps_val + 0.3f * magnitude_fft[i];
     }
 
-    // Zona max_harm=2: média geométrica = sqrt(a*b) — arm_sqrt_f32 é instrução única no Cortex-M4
+
     for (int i = bin_120hz; i < bin_300hz && i < hps_len; i++) {
         float a = magnitude_fft[i] + EPS;
         int i2 = i * 2;
@@ -107,7 +88,6 @@ void apply_hps_adaptive(float *magnitude_fft, float *hps_result, int hps_len,
         hps_result[i] = 0.7f * hps_val + 0.3f * magnitude_fft[i];
     }
 
-    // Zona max_harm=1: HPS = própria magnitude (sem operação adicional)
     for (int i = bin_300hz; i < hps_len; i++) {
         float orig = magnitude_fft[i];
         hps_result[i] = orig + 0.7f * EPS; // 0.7*hps + 0.3*orig com hps=orig+EPS
@@ -129,13 +109,13 @@ float dsp_process(volatile uint16_t *buffer) {
     preprocess_signal(buffer, input_signal);
 
     float abs_sum = 0.0f;
-    for (int i = 0; i < FRAME_LEN; i += 4) { // amostragem parcial (1/4 das amostras)
+    for (int i = 0; i < FRAME_LEN; i += 4) { //  (1/4 das amostras)
         abs_sum += fabsf(input_signal[i]);
     }
     float mean_abs = abs_sum / (FRAME_LEN / 4);
 
     if (mean_abs < SILENCE_THRESHOLD) {
-        return 0.0f; // sem sinal detectável
+        return 0.0f; // no signal
     }
 
     apply_fir(input_signal, filtered_signal);
@@ -151,15 +131,14 @@ float dsp_process(volatile uint16_t *buffer) {
 
     float mean_mag = 0.0f;
     int n = FRAME_LEN / 2;
-    const int mean_start = (int)(30.0f * FRAME_LEN / SAMPLE_RATE);
-    for (int i = mean_start; i < n; i++) mean_mag += filtered_signal[i];
-    mean_mag /= (float)(n - mean_start);
+    for (int i = 5; i < n; i++) mean_mag += filtered_signal[i];
+    mean_mag /= (float)(n - 5);
 
     const float floor_abs = 3e-4f;
     const float mult = 2.5f;
     float threshold = fmaxf(floor_abs, mean_mag * mult);
 
-   dsp_last_peak = peak;
+    dsp_last_peak = peak;
 
     if (peak < threshold) {
         return 0.0f;
@@ -175,19 +154,12 @@ float dsp_process(volatile uint16_t *buffer) {
     float half_bin = half_freq * FRAME_LEN / SAMPLE_RATE;
     float third_bin = third_freq * FRAME_LEN / SAMPLE_RATE;
 
-    // Minimum detectable frequency: below bass E1 (41.2 Hz).
-    // Prevents octave correction from producing sub-bass artefacts (e.g. E0 = 20.6 Hz)
-    // caused by low-freq noise passing through the FIR after the IIR HPF.
-    const float MIN_FUNDAMENTAL = 30.0f;
-
     //verifies octave bins — check third (freq/3) before half (freq/2) to prefer
     // the lower fundamental (e.g. A2 at 110Hz detected via E4 at 330Hz, not E3 at 165Hz)
-    if (third_bin > 5 && third_freq >= MIN_FUNDAMENTAL &&
-            filtered_signal[(int)third_bin] > 0.3f * dsp_last_peak) {
-        fundamental = third_freq;
-    } else if (half_bin > 5 && half_freq >= MIN_FUNDAMENTAL &&
-            filtered_signal[(int)half_bin] > 0.4f * dsp_last_peak) {
-        fundamental = half_freq;
+    if (third_bin > 5 && filtered_signal[(int)third_bin] > 0.3f * dsp_last_peak) {
+	fundamental = third_freq;
+    } else if (half_bin > 5 && filtered_signal[(int)half_bin] > 0.4f * dsp_last_peak) {
+	fundamental = half_freq;
     }
 
     return fundamental;
