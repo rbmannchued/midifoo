@@ -105,16 +105,14 @@ void action_toggle_tunerMode(void *ctx) {
     led_service_set_tuner_mode(tunerModeActivated);
 
     if (tunerModeActivated) {
+	vTaskSuspend(xHandlePotsPoll);
+	vTaskSuspend(xHandleBatteryTask);
 	pots_service_stop();
 	vTaskDelay(5);
 	tuner_service_init();
         audio_start();
-	vTaskSuspend(xHandlePotsPoll);
-	vTaskSuspend(xHandleBatteryTask);
 	/* sets button task lower priority than audio tuner tasks */
 	vTaskPrioritySet(xHandleButtonPoll, 2);
-        vTaskResume(xHandleAudioAcq);
-        vTaskResume(xHandleFFTProc);
 	display_service_showTunerInfo(0, " ", 0); // mostra tela tuner inicial
         
     } else {
