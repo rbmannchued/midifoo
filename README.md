@@ -42,20 +42,28 @@ PCB Gerber files and a 3D-printable case model (.stl) are available in the compa
 
 ---
 
+## Dependencies
+- gcc-arm-none-eabi
+- stlink-tools
+
 ## Build & Flash
 
 ### 1. Clone the repository (with submodules)
 ```bash
 git clone --recurse-submodules https://github.com/rbmannchued/midifoo.git
 ```
+### 2. Build libopencm3 STM32F4 
+```bash
+cd libopencm3/ && make TARGETS='stm32/f4' && cd ..
+```
 
-### 2. Build the firmware
+### 3. Build the firmware
 ```bash
 cd src/
 make
 ```
 
-### 3. Flash via ST-Link
+### 4. Flash via ST-Link
 ```bash
 make flashbin
 ```
