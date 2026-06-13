@@ -176,8 +176,8 @@ TEST(DSPTests, Test_B_246_28hz_neck) {
 }
 
 TEST(DSPTests, Test_D_146_Hz_Neck) {
-    const char* filename = "samples/D_146_strato_neck.wav";
-    float expected = 146.83f; // D3 = 146.83 Hz
+    const char* filename = "samples/4000_sample_rate/D-146_02hz-neck.wav";
+    float expected = 146.02f; // D3 = 146.83 Hz
     float detected = test_dsp_process_with_wav(filename);
     
     printf("\nTest: %s\n", filename);
@@ -219,9 +219,8 @@ TEST(DSPTests, Test_G_195_14hz_neck) {
     DOUBLES_EQUAL(expected, detected, FREQUENCY_TOLERANCE);
 }
 
-// Teste de performance (opcional)
 TEST(DSPTests, Test_Performance) {
-    const char* filename = "samples/A_110_strato_bridge.wav";
+    const char* filename = "samples/4000_sample_rate/G-195_14hz-neck.wav";
     uint16_t* buffer = NULL;
     int total_samples = 0;
     
