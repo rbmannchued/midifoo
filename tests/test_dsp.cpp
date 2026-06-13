@@ -14,7 +14,7 @@
 #define TEST_ENVIRONMENT
 
 // Tolerância para comparação de frequências (em Hz)
-#define FREQUENCY_TOLERANCE 5.0f
+#define FREQUENCY_TOLERANCE 1.0f
 
 // Estrutura para header WAV simplificado
 #pragma pack(push, 1)
@@ -153,9 +153,9 @@ TEST_GROUP(DSPTests) {
     }
 };
 
-TEST(DSPTests, Test_A_110_Hz_Strat_Neck) {
-    const char* filename = "samples/A_110_strato_neck.wav";
-    float expected = 110.0f;
+TEST(DSPTests, Test_A_109_68hz_neck) {
+    const char* filename = "samples/4000_sample_rate/A-109_68hz-neck.wav";
+    float expected = 109.68f;
     float detected = test_dsp_process_with_wav(filename);
     
     printf("\nTest: %s\n", filename);
@@ -164,9 +164,9 @@ TEST(DSPTests, Test_A_110_Hz_Strat_Neck) {
     DOUBLES_EQUAL(expected, detected, FREQUENCY_TOLERANCE);
 }
 
-TEST(DSPTests, Test_B_247_Hz_Strat_Neck) {
-    const char* filename = "samples/B_247_strato_neck.wav";
-    float expected = 246.94f; // B3 = 246.94 Hz
+TEST(DSPTests, Test_B_246_28hz_neck) {
+    const char* filename = "samples/4000_sample_rate/B-246_28hz-neck.wav";
+    float expected = 246.28f; // B3 = 246.94 Hz
     float detected = test_dsp_process_with_wav(filename);
     
     printf("\nTest: %s\n", filename);
@@ -175,7 +175,7 @@ TEST(DSPTests, Test_B_247_Hz_Strat_Neck) {
     DOUBLES_EQUAL(expected, detected, FREQUENCY_TOLERANCE);
 }
 
-TEST(DSPTests, Test_D_146_Hz_Strat_Neck) {
+TEST(DSPTests, Test_D_146_Hz_Neck) {
     const char* filename = "samples/D_146_strato_neck.wav";
     float expected = 146.83f; // D3 = 146.83 Hz
     float detected = test_dsp_process_with_wav(filename);
@@ -186,9 +186,9 @@ TEST(DSPTests, Test_D_146_Hz_Strat_Neck) {
     DOUBLES_EQUAL(expected, detected, FREQUENCY_TOLERANCE);
 }
 
-TEST(DSPTests, Test_E_330_Hz_Strat_Neck) {
-    const char* filename = "samples/E_330_strato_neck.wav";
-    float expected = 329.63f; // E4 = 329.63 Hz
+TEST(DSPTests, Test_E_329_05hz_neck) {
+    const char* filename = "samples/4000_sample_rate/E-329_05hz-neck.wav";
+    float expected = 329.05f; // E4 = 329.63 Hz
     float detected = test_dsp_process_with_wav(filename);
     
     printf("\nTest: %s\n", filename);
@@ -197,9 +197,9 @@ TEST(DSPTests, Test_E_330_Hz_Strat_Neck) {
     DOUBLES_EQUAL(expected, detected, FREQUENCY_TOLERANCE);
 }
 
-TEST(DSPTests, Test_E_82_Hz_Strat_Neck) {
-    const char* filename = "samples/E_82_strato_neck.wav";
-    float expected = 82.41f; // E2 = 82.41 Hz
+TEST(DSPTests, Test_E_82_76hz_neck) {
+    const char* filename = "samples/4000_sample_rate/E-82_76hz-neck.wav";
+    float expected = 82.76f; // E2 = 82.41 Hz
     float detected = test_dsp_process_with_wav(filename);
     
     printf("\nTest: %s\n", filename);
@@ -208,9 +208,9 @@ TEST(DSPTests, Test_E_82_Hz_Strat_Neck) {
     DOUBLES_EQUAL(expected, detected, FREQUENCY_TOLERANCE);
 }
 
-TEST(DSPTests, Test_G_196_Hz_Strat_Neck) {
-    const char* filename = "samples/G_196_strato_neck.wav";
-    float expected = 196.00f; // G3 = 196.00 Hz
+TEST(DSPTests, Test_G_195_14hz_neck) {
+    const char* filename = "samples/4000_sample_rate/G-195_14hz-neck.wav";
+    float expected = 195.14f; // G3 = 196.00 Hz
     float detected = test_dsp_process_with_wav(filename);
     
     printf("\nTest: %s\n", filename);
