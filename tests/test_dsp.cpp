@@ -153,9 +153,9 @@ TEST_GROUP(DSPTests) {
     }
 };
 
-TEST(DSPTests, Test_A_109_68hz_neck) {
-    const char* filename = "samples/4000_sample_rate/A-109_68hz-neck.wav";
-    float expected = 109.68f;
+TEST(DSPTests, Test_A_109_34hz_neck) {
+    const char* filename = "samples/4000_sample_rate/A-109_34hz-neck_new.wav";
+    float expected = 109.34f;
     float detected = test_dsp_process_with_wav(filename);
     
     printf("\nTest: %s\n", filename);
@@ -197,9 +197,9 @@ TEST(DSPTests, Test_E_329_05hz_neck) {
     DOUBLES_EQUAL(expected, detected, FREQUENCY_TOLERANCE);
 }
 
-TEST(DSPTests, Test_E_82_76hz_neck) {
-    const char* filename = "samples/4000_sample_rate/E-82_76hz-neck.wav";
-    float expected = 82.76f; // E2 = 82.41 Hz
+TEST(DSPTests, Test_E_82_09hz_neck) {
+    const char* filename = "samples/4000_sample_rate/E-82_09hz-neck.wav";
+    float expected = 82.09f; // E2 = 82.41 Hz
     float detected = test_dsp_process_with_wav(filename);
     
     printf("\nTest: %s\n", filename);
